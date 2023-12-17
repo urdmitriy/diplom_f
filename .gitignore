@@ -1,0 +1,10 @@
+
+.idea/
+
+diplom-esp32-mqtt-adapter/build/
+
+diplom-esp32-mqtt-adapter/cmake-build-debug/
+
+diplom-esp32/build/
+
+diplom-esp32/cmake-build-debug/
