@@ -3,16 +3,19 @@
 //
 
 #include "uart_esp.h"
+#include "uart_data.h"
 #include "driver/uart.h"
 #include "string.h"
 #include "esp_log.h"
 
 static const int RX_BUF_SIZE = 1024;
+static QueueHandle_t *_queue_message_to_send;
 
 #define TXD_PIN 17
 #define RXD_PIN 18
 
-void uart_init(void){
+void uart_init(QueueHandle_t *queue_message_to_send){
+    _queue_message_to_send = queue_message_to_send;
     const uart_config_t uart_config = {
             .baud_rate = 115200,
             .data_bits = UART_DATA_8_BITS,
@@ -26,7 +29,7 @@ void uart_init(void){
     uart_param_config(UART_NUM_1, &uart_config);
     uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     xTaskCreate(rx_task, "uart_rx_task", 1024*2, NULL, configMAX_PRIORITIES, NULL);
-    //xTaskCreate(tx_task, "uart_tx_task", 1024*2, NULL, configMAX_PRIORITIES-1, NULL);
+    xTaskCreate(tx_task, "uart_tx_task", 1024*2, NULL, configMAX_PRIORITIES-1, NULL);
 }
 int sendData(const char* data)
 {
@@ -37,12 +40,13 @@ int sendData(const char* data)
 }
 static void tx_task(void *arg)
 {
-    static const char *TX_TASK_TAG = "TX_TASK";
-    esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
-    while (1) {
-        sendData("Hello world");
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
-    }
+
+    uart_data_t data_to_send;
+    xQueueReceive(_queue_message_to_send, &data_to_send, portMAX_DELAY);
+    ESP_LOGI("UART", "Data ready to send!");
+    sendData((char*) &data_to_send);
+    vTaskDelay(pdMS_TO_TICKS(20));
+
 }
 
 static void rx_task(void *arg)

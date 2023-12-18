@@ -6,10 +6,7 @@
 #include "mqtt_esp.h"
 #include "esp_mac.h"
 #include "esp_wifi.h"
-
-#if defined ESP_MQTT_ADAPTER
 #include "uart_esp.h"
-#endif
 
 esp_mqtt_client_handle_t mqtt_client;
 
@@ -28,10 +25,6 @@ void app_main(void)
     wifi_init_sta();
     ESP_ERROR_CHECK(esp_netif_init());
     mqtt_app_start(&mqtt_client);
-
-#if defined ESP_MQTT_ADAPTER
-    uart_init();
-#endif
 
     while (1){ ; }
 }
