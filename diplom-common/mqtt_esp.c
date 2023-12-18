@@ -16,6 +16,7 @@
 #elif defined ESP_MQTT_ADAPTER
 #include "uart_esp.h"
 #include "uart_data.h"
+#include "esp_crc.h"
 #endif
 
 
@@ -127,11 +128,13 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             sprintf(data_topic, "%.*s", event->data_len, event->data);
 
             data.data_type = DATA_TYPE_DATA;
-            data.parametr = get_param_name(topic);
+            data.id_parametr = (int)get_param_name(topic);
             float value_float = strtof(data_topic, NULL);
             data.value = (int)(value_float*10);
 
-            ESP_LOGI("RES", "Data type = %d, parametr = %d, value = %f", data.data_type, data.parametr, ((float)data.value)/10);
+            esp_crc8_le(data.crc, (uint8_t*)&data, sizeof (uart_data_t) - sizeof (uint8_t));
+
+            ESP_LOGI("RES", "Data type = %d, parametr = %d, value = %f, crc = %d", data.data_type, data.id_parametr, ((float)data.value)/10, data.crc);
 
 
 #endif

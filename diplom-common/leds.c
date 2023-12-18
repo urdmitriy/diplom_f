@@ -3,7 +3,7 @@
 //
 
 #include "leds.h"
-#include "../../../Users/urdmi/esp/esp-idf/components/driver/gpio/include/driver/gpio.h"
+#include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/timers.h"
