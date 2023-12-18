@@ -20,7 +20,7 @@
 #endif
 
 static uart_data_t data;
-static QueueHandle_t *queue_message_to_send = NULL;
+static QueueHandle_t queue_message_to_send = NULL;
 
 static void log_error_if_nonzero(const char *message, int error_code)
 {
@@ -76,7 +76,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             esp_mqtt_client_subscribe(client, "gb_iot/2950_UDA/inputs", 0);
             esp_mqtt_client_subscribe(client, "gb_iot/2950_UDA/temp", 0);
             esp_mqtt_client_subscribe(client, "gb_iot/2950_UDA/humidity", 0);
-            uart_init(queue_message_to_send);
+            uart_init(&queue_message_to_send);
 #endif
             break;
 
@@ -132,10 +132,10 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             float value_float = strtof(data_topic, NULL);
             data.value = (int)(value_float*10);
 
-            esp_crc8_le(data.crc, (uint8_t*)&data, sizeof (uart_data_t) - sizeof (uint8_t));
+            data.crc = esp_crc8_be(0xFF, (uint8_t*)&data, 9);
 
-            ESP_LOGI("RES", "Data type = %d, parametr = %d, value = %f, crc = %d", data.data_type, data.id_parametr, ((float)data.value)/10, data.crc);
-            xQueueSend(*queue_message_to_send, &data, pdMS_TO_TICKS(50));
+            ESP_LOGI("RES", "Data type = %d, parametr = %d, value = %lu, crc = %d", data.data_type, data.id_parametr, data.value, data.crc);
+            xQueueSend(queue_message_to_send, &data, pdMS_TO_TICKS(10));
 
 #endif
 
@@ -161,7 +161,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
 void mqtt_app_start(esp_mqtt_client_handle_t* _mqtt_client)
 {
-    *queue_message_to_send = xQueueCreate(50, sizeof(uart_data_t));
+    queue_message_to_send = xQueueCreate(50, sizeof(uart_data_t));
 
     esp_mqtt_client_config_t mqtt_cfg = {
             .broker.address.uri = "mqtt://erinaceto.ru",
