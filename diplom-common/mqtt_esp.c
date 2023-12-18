@@ -5,8 +5,6 @@
 #include "mqtt_esp.h"
 
 
-
-static uart_data_t data;
 static QueueHandle_t queue_message_to_send = NULL;
 static esp_mqtt_client_handle_t* _client;
 
@@ -113,11 +111,13 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             sprintf(topic, "%.*s", event->topic_len, event->topic);
             sprintf(data_topic, "%.*s", event->data_len, event->data);
 
+            uart_data_t data;
+
             data.data_type = DATA_TYPE_DATA;
             data.id_parametr = (int)get_param_name(topic);
             float value_float = strtof(data_topic, NULL);
             data.value_uint32 = (int)(value_float*10);
-            size_t temp = sizeof (uart_data_t);
+
             data.crc = crc8ccitt((uint8_t*)&data, DATA_SIZE);
 
             ESP_LOGI("RES", "Data type = %d, parametr = %d, value = %lu, crc = %d", data.data_type, data.id_parametr, data.value_uint32, data.crc);
