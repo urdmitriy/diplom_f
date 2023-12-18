@@ -42,7 +42,7 @@ static void tx_task(void *arg)
 {
 
     uart_data_t data_to_send;
-    xQueueReceive(_queue_message_to_send, &data_to_send, portMAX_DELAY);
+    xQueueReceive(*_queue_message_to_send, &data_to_send, portMAX_DELAY);
     ESP_LOGI("UART", "Data ready to send!");
     sendData((char*) &data_to_send);
     vTaskDelay(pdMS_TO_TICKS(20));

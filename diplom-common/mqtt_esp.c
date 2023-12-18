@@ -19,15 +19,13 @@
 #include "esp_crc.h"
 #endif
 
-
-static const char *TAG_MQTT = "MQTT_EXAMPLE";
 static uart_data_t data;
-QueueHandle_t *queue_message_to_send = NULL;
+static QueueHandle_t *queue_message_to_send = NULL;
 
 static void log_error_if_nonzero(const char *message, int error_code)
 {
     if (error_code != 0) {
-        ESP_LOGE(TAG_MQTT, "Last error %s: 0x%x", message, error_code);
+        ESP_LOGE("TAG_MQTT", "Last error %s: 0x%x", message, error_code);
     }
 }
 
@@ -59,13 +57,13 @@ static parametr_name_e get_param_name(char *topic_name) {
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
-    ESP_LOGD(TAG_MQTT, "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
+    ESP_LOGD("TAG_MQTT", "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
     esp_mqtt_event_handle_t event = event_data;
     esp_mqtt_client_handle_t client = event->client;
 
     switch ((esp_mqtt_event_id_t)event_id) {
         case MQTT_EVENT_CONNECTED:
-            ESP_LOGI(TAG_MQTT, "MQTT_EVENT_CONNECTED");
+            ESP_LOGI("TAG_MQTT", "MQTT_EVENT_CONNECTED");
 
 #if defined ESP_PUBLISHER
             xTaskCreate(dht11_vTask_read, "DHT11", 4096, NULL, 1, NULL);
@@ -83,18 +81,18 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             break;
 
         case MQTT_EVENT_DISCONNECTED:
-            ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DISCONNECTED");
+            ESP_LOGI("TAG_MQTT", "MQTT_EVENT_DISCONNECTED");
             break;
 
         case MQTT_EVENT_SUBSCRIBED:
-            ESP_LOGI(TAG_MQTT, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
+            ESP_LOGI("TAG_MQTT", "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
             break;
         case MQTT_EVENT_UNSUBSCRIBED:
-            ESP_LOGI(TAG_MQTT, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+            ESP_LOGI("TAG_MQTT", "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
             break;
 
         case MQTT_EVENT_PUBLISHED:
-            ESP_LOGI(TAG_MQTT, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+            ESP_LOGI("TAG_MQTT", "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
 #if defined ESP_PUBLISHER
             leds_flash(LED_YELLOW, 50);
 #elif defined ESP_MQTT_ADAPTER
@@ -103,7 +101,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             break;
 
         case MQTT_EVENT_DATA:{
-            ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DATA");
+            ESP_LOGI("TAG_MQTT", "MQTT_EVENT_DATA");
             printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
             printf("DATA=%.*s\r\n", event->data_len, event->data);
             leds_flash(LED_GREEN, 100);
@@ -146,24 +144,24 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
 
         case MQTT_EVENT_ERROR:
-            ESP_LOGI(TAG_MQTT, "MQTT_EVENT_ERROR");
+            ESP_LOGI("TAG_MQTT", "MQTT_EVENT_ERROR");
             if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
                 log_error_if_nonzero("reported from esp-tls", event->error_handle->esp_tls_last_esp_err);
                 log_error_if_nonzero("reported from tls stack", event->error_handle->esp_tls_stack_err);
                 log_error_if_nonzero("captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
-                ESP_LOGI(TAG_MQTT, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
+                ESP_LOGI("TAG_MQTT", "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
             }
             break;
 
         default:
-            ESP_LOGI(TAG_MQTT, "Other event id:%d", event->event_id);
+            ESP_LOGI("TAG_MQTT", "Other event id:%d", event->event_id);
             break;
     }
 }
 
 void mqtt_app_start(esp_mqtt_client_handle_t* _mqtt_client)
 {
-    queue_message_to_send = xQueueCreate(50, sizeof(uart_data_t));
+    *queue_message_to_send = xQueueCreate(50, sizeof(uart_data_t));
 
     esp_mqtt_client_config_t mqtt_cfg = {
             .broker.address.uri = "mqtt://erinaceto.ru",
