@@ -4,6 +4,7 @@ idf_component_register(
         "../../diplom-common/wifi_esp.c"
         "../../diplom-common/mqtt_esp.c"
         "../../diplom-common/uart_esp.c"
+        "../../diplom-common/crc8.c"
         INCLUDE_DIRS
         "."
         "../../diplom-common/"

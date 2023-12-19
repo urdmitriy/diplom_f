@@ -16,7 +16,7 @@
 #elif defined ESP_MQTT_ADAPTER
 #include "uart_esp.h"
 #include "uart_data.h"
-#include "esp_crc.h"
+#include "crc8.h"
 #endif
 
 static uart_data_t data;
@@ -132,7 +132,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             float value_float = strtof(data_topic, NULL);
             data.value = (int)(value_float*10);
 
-            data.crc = esp_crc8_be(0xFF, (uint8_t*)&data, 9);
+            data.crc = crc8ccitt((uint8_t*)&data, 9);
 
             ESP_LOGI("RES", "Data type = %d, parametr = %d, value = %lu, crc = %d", data.data_type, data.id_parametr, data.value, data.crc);
             xQueueSend(queue_message_to_send, &data, pdMS_TO_TICKS(10));
