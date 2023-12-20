@@ -205,17 +205,32 @@ void uart_data_handler(char *rx_buffer){
     switch (data_rcv.data_type) {
         case DATA_TYPE_CMD:
             switch ((commands_e)data_rcv.id_parametr) {
-                case COMMAND_OFF_LOAD:
-                    break;
-                case COMMAND_ON_LOAD:
-                    break;
+
                 case COMMAND_SUBSCRIBE_TOPIC:{
                     char topic_master[128];
                     strcpy(topic_master, data_rcv.value_string);
                     mqtt_subscribe(topic_master);
                 }
                     break;
-                case COMMAND_UNSUBSCRIBE_TOPIC:
+                case COMMAND_UNSUBSCRIBE_TOPIC: {
+                    char topic_master[128];
+                    strcpy(topic_master, data_rcv.value_string);
+                    mqtt_unsubscribe(topic_master);
+                }
+                    break;
+                case COMMAND_OFF_LOAD:{
+                    char topic[128], message[10];
+                    sprintf(topic, BASE_TOPIC_NAME, "onpayload");
+                    sprintf(message, "0");
+                    esp_mqtt_client_publish(*_client, topic,  message, 0, 1, 0);
+                }
+                    break;
+                case COMMAND_ON_LOAD:{
+                    char topic[128], message[10];
+                    sprintf(topic, BASE_TOPIC_NAME, "onpayload");
+                    sprintf(message, "1");
+                    esp_mqtt_client_publish(*_client, topic,  message, 0, 1, 0);
+                }
                     break;
                 default:
                     break;
