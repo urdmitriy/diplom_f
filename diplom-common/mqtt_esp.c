@@ -72,11 +72,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             xTaskCreate(light_sensor_vTask, "light_sensor_vTask", 2048, NULL, 10, NULL);
             esp_mqtt_client_subscribe(client, "gb_iot/2950_UDA/onpayload", 0);
 #elif defined ESP_MQTT_ADAPTER
-            esp_mqtt_client_subscribe(client, "gb_iot/2950_UDA/insol", 0);
-            esp_mqtt_client_subscribe(client, "gb_iot/2950_UDA/inputs", 0);
-            esp_mqtt_client_subscribe(client, "gb_iot/2950_UDA/temp", 0);
-            esp_mqtt_client_subscribe(client, "gb_iot/2950_UDA/humidity", 0);
             uart_init(&queue_message_to_send);
+            mqtt_subscribe(&client, "2950_UDA");
 #endif
             break;
 
@@ -130,11 +127,11 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             data.data_type = DATA_TYPE_DATA;
             data.id_parametr = (int)get_param_name(topic);
             float value_float = strtof(data_topic, NULL);
-            data.value = (int)(value_float*10);
+            data.value_uint32 = (int)(value_float*10);
+            size_t temp = sizeof (uart_data_t);
+            data.crc = crc8ccitt((uint8_t*)&data, 137);
 
-            data.crc = crc8ccitt((uint8_t*)&data, 9);
-
-            ESP_LOGI("RES", "Data type = %d, parametr = %d, value = %lu, crc = %d", data.data_type, data.id_parametr, data.value, data.crc);
+            ESP_LOGI("RES", "Data type = %d, parametr = %d, value = %lu, crc = %d", data.data_type, data.id_parametr, data.value_uint32, data.crc);
             xQueueSend(queue_message_to_send, &data, pdMS_TO_TICKS(10));
 
 #endif
@@ -157,6 +154,30 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             ESP_LOGI("TAG_MQTT", "Other event id:%d", event->event_id);
             break;
     }
+}
+
+void mqtt_subscribe(esp_mqtt_client_handle_t* client, char* group){
+    char _topic[128];
+    sprintf(_topic, "gb_iot/%s/insol", group);
+    esp_mqtt_client_subscribe(*client, _topic, 0);
+    sprintf(_topic, "gb_iot/%s/inputs", group);
+    esp_mqtt_client_subscribe(*client, _topic, 0);
+    sprintf(_topic, "gb_iot/%s/temp", group);
+    esp_mqtt_client_subscribe(*client, _topic, 0);
+    sprintf(_topic, "gb_iot/%s/humidity", group);
+    esp_mqtt_client_subscribe(*client, _topic, 0);
+}
+
+void mqtt_unsubscribe(esp_mqtt_client_handle_t* client, char* group){
+    char _topic[128];
+    sprintf(_topic, "gb_iot/%s/insol", group);
+    esp_mqtt_client_unsubscribe(*client, _topic);
+    sprintf(_topic, "gb_iot/%s/inputs", group);
+    esp_mqtt_client_unsubscribe(*client, _topic);
+    sprintf(_topic, "gb_iot/%s/temp", group);
+    esp_mqtt_client_unsubscribe(*client, _topic);
+    sprintf(_topic, "gb_iot/%s/humidity", group);
+    esp_mqtt_client_unsubscribe(*client, _topic);
 }
 
 void mqtt_app_start(esp_mqtt_client_handle_t* _mqtt_client)

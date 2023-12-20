@@ -10,4 +10,6 @@
 
 void mqtt_app_start(esp_mqtt_client_handle_t* mqtt_client);
 static parametr_name_e get_param_name(char *topic_name);
+void mqtt_subscribe(esp_mqtt_client_handle_t* client, char* group);
+void mqtt_unsubscribe(esp_mqtt_client_handle_t* client, char* group);
 #endif //DIPLOM_ESP32_MQTT_ESP_H
