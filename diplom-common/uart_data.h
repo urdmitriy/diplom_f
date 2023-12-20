@@ -5,6 +5,10 @@
 #ifndef DIPLOM_ESP32_MQTT_ADAPTER_UART_DATA_H
 #define DIPLOM_ESP32_MQTT_ADAPTER_UART_DATA_H
 
+#define DATA_SIZE 137
+
+typedef void (*packet_handler)(void);
+
 typedef enum {
     DATA_TYPE_CMD,
 	DATA_TYPE_STATE,

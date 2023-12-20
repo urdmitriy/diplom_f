@@ -3,19 +3,21 @@
 //
 
 #include "uart_esp.h"
-#include "uart_data.h"
-#include "driver/uart.h"
-#include "string.h"
 #include "esp_log.h"
-#include "soc/uart_struct.h"
+
 
 QueueHandle_t *_queue_message_to_send;
+uint8_t *_rx_buffer;
+packet_handler _packet_handler_app;
 
 #define TXD_PIN 17
 #define RXD_PIN 18
 
-void uart_init(QueueHandle_t *queue_message_to_send){
+void uart_init(QueueHandle_t *queue_message_to_send, uint8_t *rx_buffer, packet_handler packet_handler_app){
     _queue_message_to_send = queue_message_to_send;
+    _rx_buffer = rx_buffer;
+    _packet_handler_app = packet_handler_app;
+
     const uart_config_t uart_config = {
             .baud_rate = 115200,
             .data_bits = UART_DATA_8_BITS,
@@ -53,14 +55,12 @@ static void tx_task(void *arg)
 static void rx_task(void *arg)
 {
     static const char *RX_TASK_TAG = "RX_TASK";
-    uint8_t* data = (uint8_t*) malloc(sizeof (uart_data_t) + 1);
     for (;;) {
-        const int rxBytes = uart_read_bytes(UART_NUM_1, data, sizeof (uart_data_t), 1000 / portTICK_PERIOD_MS);
+        const int rxBytes = uart_read_bytes(UART_NUM_1, _rx_buffer, sizeof (uart_data_t), 1000 / portTICK_PERIOD_MS);
         if (rxBytes > 0) {
-            data[rxBytes] = 0;
-            ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
-            ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, data, rxBytes, ESP_LOG_INFO);
+            _rx_buffer[rxBytes] = 0;
+            ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, _rx_buffer);
+            ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, _rx_buffer, rxBytes, ESP_LOG_INFO);
         }
     }
-    free(data);
 }

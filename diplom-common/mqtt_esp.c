@@ -21,6 +21,8 @@
 
 static uart_data_t data;
 static QueueHandle_t queue_message_to_send = NULL;
+static uint8_t rx_buffer[256];
+static esp_mqtt_client_handle_t* _client;
 
 static void log_error_if_nonzero(const char *message, int error_code)
 {
@@ -59,7 +61,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 {
     ESP_LOGD("TAG_MQTT", "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
     esp_mqtt_event_handle_t event = event_data;
-    esp_mqtt_client_handle_t client = event->client;
+    _client = &event->client;
 
     switch ((esp_mqtt_event_id_t)event_id) {
         case MQTT_EVENT_CONNECTED:
@@ -72,7 +74,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             xTaskCreate(light_sensor_vTask, "light_sensor_vTask", 2048, NULL, 10, NULL);
             esp_mqtt_client_subscribe(client, "gb_iot/2950_UDA/onpayload", 0);
 #elif defined ESP_MQTT_ADAPTER
-            uart_init(&queue_message_to_send);
+            uart_init(&queue_message_to_send, rx_buffer, uart_data_handler);
             mqtt_subscribe(&client, "2950_UDA");
 #endif
             break;
@@ -129,7 +131,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             float value_float = strtof(data_topic, NULL);
             data.value_uint32 = (int)(value_float*10);
             size_t temp = sizeof (uart_data_t);
-            data.crc = crc8ccitt((uint8_t*)&data, 137);
+            data.crc = crc8ccitt((uint8_t*)&data, DATA_SIZE);
 
             ESP_LOGI("RES", "Data type = %d, parametr = %d, value = %lu, crc = %d", data.data_type, data.id_parametr, data.value_uint32, data.crc);
             xQueueSend(queue_message_to_send, &data, pdMS_TO_TICKS(10));
@@ -156,28 +158,28 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
-void mqtt_subscribe(esp_mqtt_client_handle_t* client, char* group){
+void mqtt_subscribe(char* group){
     char _topic[128];
     sprintf(_topic, "gb_iot/%s/insol", group);
-    esp_mqtt_client_subscribe(*client, _topic, 0);
+    esp_mqtt_client_subscribe(*_client, _topic, 0);
     sprintf(_topic, "gb_iot/%s/inputs", group);
-    esp_mqtt_client_subscribe(*client, _topic, 0);
+    esp_mqtt_client_subscribe(*_client, _topic, 0);
     sprintf(_topic, "gb_iot/%s/temp", group);
-    esp_mqtt_client_subscribe(*client, _topic, 0);
+    esp_mqtt_client_subscribe(*_client, _topic, 0);
     sprintf(_topic, "gb_iot/%s/humidity", group);
-    esp_mqtt_client_subscribe(*client, _topic, 0);
+    esp_mqtt_client_subscribe(*_client, _topic, 0);
 }
 
-void mqtt_unsubscribe(esp_mqtt_client_handle_t* client, char* group){
+void mqtt_unsubscribe(char* group){
     char _topic[128];
     sprintf(_topic, "gb_iot/%s/insol", group);
-    esp_mqtt_client_unsubscribe(*client, _topic);
+    esp_mqtt_client_unsubscribe(*_client, _topic);
     sprintf(_topic, "gb_iot/%s/inputs", group);
-    esp_mqtt_client_unsubscribe(*client, _topic);
+    esp_mqtt_client_unsubscribe(*_client, _topic);
     sprintf(_topic, "gb_iot/%s/temp", group);
-    esp_mqtt_client_unsubscribe(*client, _topic);
+    esp_mqtt_client_unsubscribe(*_client, _topic);
     sprintf(_topic, "gb_iot/%s/humidity", group);
-    esp_mqtt_client_unsubscribe(*client, _topic);
+    esp_mqtt_client_unsubscribe(*_client, _topic);
 }
 
 void mqtt_app_start(esp_mqtt_client_handle_t* _mqtt_client)
@@ -194,4 +196,36 @@ void mqtt_app_start(esp_mqtt_client_handle_t* _mqtt_client)
     *_mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_register_event(*_mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(*_mqtt_client);
+}
+
+void uart_data_handler(void ){
+    uart_data_t data_rcv = *(uart_data_t*)rx_buffer;
+
+    if (data_rcv.crc != crc8ccitt(&data_rcv, DATA_SIZE)) return;
+
+    switch (data_rcv.data_type) {
+        case DATA_TYPE_CMD:
+            switch ((commands_e)data_rcv.id_parametr) {
+                case COMMAND_OFF_LOAD:
+                    break;
+                case COMMAND_ON_LOAD:
+                    break;
+                case COMMAND_SUBSCRIBLE_TOPIC:{
+                    char topic_master[128];
+                    strcpy(topic_master, data_rcv.value_string);
+                    mqtt_subscribe(topic_master);
+                }
+                    break;
+                case COMMAND_UNSUBSCRIBLE_TOPIC:
+                    break;
+                default:
+                    break;
+            }
+            break;
+
+        case DATA_TYPE_DATA:
+        case DATA_TYPE_STATE:
+        default:
+            break;
+    }
 }
