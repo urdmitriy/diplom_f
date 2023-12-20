@@ -2,22 +2,9 @@
 // Created by urdmi on 25.11.2023.
 //
 
-#include "target.h"
 #include "mqtt_esp.h"
-#include "mqtt_client.h"
-#include "esp_log.h"
-#include "leds.h"
-#include "driver/gpio.h"
-#include "di.h"
 
-#if defined ESP_PUBLISHER
-#include "dht11.h"
-#include "photosensor.h"
-#elif defined ESP_MQTT_ADAPTER
-#include "uart_esp.h"
-#include "uart_data.h"
-#include "crc8.h"
-#endif
+
 
 static uart_data_t data;
 static QueueHandle_t queue_message_to_send = NULL;
@@ -73,6 +60,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             xTaskCreate(light_sensor_vTask, "light_sensor_vTask", 2048, NULL, 10, NULL);
             esp_mqtt_client_subscribe(client, "gb_iot/2950_UDA/onpayload", 0);
 #elif defined ESP_MQTT_ADAPTER
+            send_status_mqtt_adapter(STATUS_MQTT_SERVER_IS_CONNECT);
             uart_init(&queue_message_to_send, uart_data_handler);
             mqtt_subscribe("2950_UDA");
 #endif
@@ -118,7 +106,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                 }
             }
 #elif defined ESP_MQTT_ADAPTER
-
+            send_status_mqtt_adapter(STATUS_MQTT_RCV_DATA);
             char topic[100];
             char data_topic[10];
 

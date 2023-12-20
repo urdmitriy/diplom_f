@@ -3,8 +3,6 @@
 //
 
 #include "uart_esp.h"
-#include "esp_log.h"
-
 
 QueueHandle_t *_queue_message_to_send;
 static uint8_t _rx_buffer[256];
@@ -65,4 +63,12 @@ static void rx_task(void *arg)
             _packet_handler_app((char*)_rx_buffer);
         }
     }
+}
+
+void send_status_mqtt_adapter(state_e status){
+    uart_data_t data_to_send;
+    data_to_send.data_type = DATA_TYPE_STATE;
+    data_to_send.id_parametr = (int)status;
+    data_to_send.crc = crc8ccitt((uint8_t*)&data_to_send, DATA_SIZE);
+    sendData((char*)&data_to_send);
 }

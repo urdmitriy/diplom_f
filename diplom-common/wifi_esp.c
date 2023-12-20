@@ -3,12 +3,6 @@
 //
 
 #include "wifi_esp.h"
-#include "esp_mac.h"
-
-#include "esp_log.h"
-#include "esp_wifi.h"
-#include "freertos/event_groups.h"
-#include "leds.h"
 
 #define EXAMPLE_ESP_WIFI_SSID      "MTS_GPON_3BF6"
 #define EXAMPLE_ESP_WIFI_PASS      "CdARCCTH"
@@ -47,6 +41,8 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
         leds_flash(LED_BLUE, 500);
 #elif defined ESP_MQTT_ADAPTER
         leds_flash(LED_GREEN, 500);
+        send_status_mqtt_adapter(STATUS_WIFI_IS_CONNECT);
+
 #endif
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
@@ -86,6 +82,8 @@ void wifi_init_sta(void)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
     ESP_ERROR_CHECK(esp_wifi_start() );
+
+    send_status_mqtt_adapter(STATUS_CONNECTING_WIFI);
 
     ESP_LOGI(TAG_W, "wifi_init_sta finished.");
 

@@ -2,16 +2,7 @@
 // Created by urdmi on 25.11.2023.
 //
 
-#include <stdio.h>
-#include "target.h"
-#include "mqtt_esp.h"
 #include "dht11.h"
-#include "driver/gpio.h"
-#include "driver/timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_log.h"
-#include "esp_timer.h"
 
 #define MAX_TIME_SENSOR_WAIT_US 10000
 

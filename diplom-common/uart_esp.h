@@ -10,11 +10,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "esp_log.h"
+#include "crc8.h"
 
 void uart_init(QueueHandle_t *queue_message_to_send, packet_handler packet_handler_app);
 int sendData(const char* data);
 static void tx_task(void *arg);
 static void rx_task(void *arg);
-
+void send_status_mqtt_adapter(state_e status);
 
 #endif //DIPLOM_ESP32_MQTT_ADAPTER_UART_ESP_H
