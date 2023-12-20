@@ -8,3 +8,11 @@ diplom-esp32-mqtt-adapter/cmake-build-debug/
 diplom-esp32/build/
 
 diplom-esp32/cmake-build-debug/
+
+diplom-stm32/cmake-build-debug/.cmake/api/v1/query/cache-v2
+
+diplom-stm32/cmake-build-debug/.cmake/api/v1/query/
+
+diplom-stm32/cmake-build-debug/.cmake/api/v1/reply/
+
+diplom-stm32/cmake-build-debug/

@@ -5,7 +5,7 @@
 #include "mqtt_esp.h"
 
 
-static QueueHandle_t queue_message_to_send = NULL;
+static QueueHandle_t* _queue_message_to_send;
 static esp_mqtt_client_handle_t* _client;
 
 static void log_error_if_nonzero(const char *message, int error_code)
@@ -45,7 +45,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 {
     ESP_LOGD("TAG_MQTT", "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
     esp_mqtt_event_handle_t event = event_data;
-    _client = &event->client;
+    //_client = &event->client;
 
     switch ((esp_mqtt_event_id_t)event_id) {
         case MQTT_EVENT_CONNECTED:
@@ -59,7 +59,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             esp_mqtt_client_subscribe(client, "gb_iot/2950_UDA/onpayload", 0);
 #elif defined ESP_MQTT_ADAPTER
             send_status_mqtt_adapter(STATUS_MQTT_SERVER_IS_CONNECT);
-            uart_init(&queue_message_to_send, uart_data_handler);
             mqtt_subscribe("2950_UDA");
 #endif
             break;
@@ -117,11 +116,11 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             data.id_parametr = (int)get_param_name(topic);
             float value_float = strtof(data_topic, NULL);
             data.value_uint32 = (int)(value_float*10);
-
+            memset((uint8_t*)data.value_string, '\0', sizeof (data.value_string));
             data.crc = crc8ccitt((uint8_t*)&data, DATA_SIZE);
 
             ESP_LOGI("RES", "Data type = %d, parametr = %d, value = %lu, crc = %d", data.data_type, data.id_parametr, data.value_uint32, data.crc);
-            xQueueSend(queue_message_to_send, &data, pdMS_TO_TICKS(10));
+            xQueueSend(*_queue_message_to_send, &data, pdMS_TO_TICKS(10));
 
 #endif
 
@@ -169,9 +168,10 @@ void mqtt_unsubscribe(char* group){
     esp_mqtt_client_unsubscribe(*_client, _topic);
 }
 
-void mqtt_app_start(esp_mqtt_client_handle_t* _mqtt_client)
+void mqtt_app_start(esp_mqtt_client_handle_t* mqtt_client, QueueHandle_t* queue_message_to_send)
 {
-    queue_message_to_send = xQueueCreate(50, sizeof(uart_data_t));
+    _queue_message_to_send = queue_message_to_send;
+    _client = mqtt_client;
 
     esp_mqtt_client_config_t mqtt_cfg = {
             .broker.address.uri = "mqtt://erinaceto.ru",
@@ -180,9 +180,9 @@ void mqtt_app_start(esp_mqtt_client_handle_t* _mqtt_client)
             .credentials.username = "user",
     };
 
-    *_mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
-    esp_mqtt_client_register_event(*_mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
-    esp_mqtt_client_start(*_mqtt_client);
+    *_client = esp_mqtt_client_init(&mqtt_cfg);
+    esp_mqtt_client_register_event(*_client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
+    esp_mqtt_client_start(*_client);
 }
 
 void uart_data_handler(char *rx_buffer){

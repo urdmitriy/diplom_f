@@ -4,6 +4,7 @@
 
 #ifndef DIPLOM_ESP32_MQTT_ADAPTER_UART_DATA_H
 #define DIPLOM_ESP32_MQTT_ADAPTER_UART_DATA_H
+#include <stdio.h>
 
 #define DATA_SIZE 137
 

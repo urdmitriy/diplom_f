@@ -13,7 +13,7 @@
 #include "esp_log.h"
 #include "crc8.h"
 
-void uart_init(QueueHandle_t *queue_message_to_send, packet_handler packet_handler_app);
+void uart_init(packet_handler packet_handler_app, QueueHandle_t *queue_message_to_send);
 int sendData(const char* data);
 static void tx_task(void *arg);
 static void rx_task(void *arg);

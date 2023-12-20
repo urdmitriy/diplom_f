@@ -7,11 +7,16 @@
 #include "esp_mac.h"
 #include "esp_wifi.h"
 #include "uart_esp.h"
-
-esp_mqtt_client_handle_t mqtt_client;
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
 
 void app_main(void)
 {
+    static esp_mqtt_client_handle_t mqtt_client;
+    static QueueHandle_t queue_message_to_send = NULL;
+    queue_message_to_send = xQueueCreate(50, sizeof(uart_data_t));
+
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     esp_err_t ret = nvs_flash_init();
@@ -21,10 +26,11 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
+    uart_init(uart_data_handler, &queue_message_to_send);
     leds_init();
-    wifi_init_sta();
+    wifi_init_sta(&queue_message_to_send, &mqtt_client);
     ESP_ERROR_CHECK(esp_netif_init());
-    mqtt_app_start(&mqtt_client);
+
 
     while (1){ ; }
 }

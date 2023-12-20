@@ -12,7 +12,8 @@
 #include "freertos/event_groups.h"
 #include "leds.h"
 #include "uart_esp.h"
+#include "mqtt_esp.h"
 
-void wifi_init_sta(void);
+void wifi_init_sta(QueueHandle_t* queue_message_to_send, esp_mqtt_client_handle_t* client);
 
 #endif //DIPLOM_ESP32_WIFI_ESP_H
