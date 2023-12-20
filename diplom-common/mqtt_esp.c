@@ -21,7 +21,6 @@
 
 static uart_data_t data;
 static QueueHandle_t queue_message_to_send = NULL;
-static uint8_t rx_buffer[256];
 static esp_mqtt_client_handle_t* _client;
 
 static void log_error_if_nonzero(const char *message, int error_code)
@@ -74,8 +73,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             xTaskCreate(light_sensor_vTask, "light_sensor_vTask", 2048, NULL, 10, NULL);
             esp_mqtt_client_subscribe(client, "gb_iot/2950_UDA/onpayload", 0);
 #elif defined ESP_MQTT_ADAPTER
-            uart_init(&queue_message_to_send, rx_buffer, uart_data_handler);
-            mqtt_subscribe(&client, "2950_UDA");
+            uart_init(&queue_message_to_send, uart_data_handler);
+            mqtt_subscribe("2950_UDA");
 #endif
             break;
 
@@ -198,7 +197,7 @@ void mqtt_app_start(esp_mqtt_client_handle_t* _mqtt_client)
     esp_mqtt_client_start(*_mqtt_client);
 }
 
-void uart_data_handler(void ){
+void uart_data_handler(char *rx_buffer){
     uart_data_t data_rcv = *(uart_data_t*)rx_buffer;
 
     if (data_rcv.crc != crc8ccitt(&data_rcv, DATA_SIZE)) return;
@@ -210,13 +209,13 @@ void uart_data_handler(void ){
                     break;
                 case COMMAND_ON_LOAD:
                     break;
-                case COMMAND_SUBSCRIBLE_TOPIC:{
+                case COMMAND_SUBSCRIBE_TOPIC:{
                     char topic_master[128];
                     strcpy(topic_master, data_rcv.value_string);
                     mqtt_subscribe(topic_master);
                 }
                     break;
-                case COMMAND_UNSUBSCRIBLE_TOPIC:
+                case COMMAND_UNSUBSCRIBE_TOPIC:
                     break;
                 default:
                     break;

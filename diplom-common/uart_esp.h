@@ -11,7 +11,7 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
-void uart_init(QueueHandle_t *queue_message_to_send, uint8_t *rx_buffer, packet_handler packet_handler_app);
+void uart_init(QueueHandle_t *queue_message_to_send, packet_handler packet_handler_app);
 int sendData(const char* data);
 static void tx_task(void *arg);
 static void rx_task(void *arg);

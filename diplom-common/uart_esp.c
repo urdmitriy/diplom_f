@@ -7,15 +7,14 @@
 
 
 QueueHandle_t *_queue_message_to_send;
-uint8_t *_rx_buffer;
+static uint8_t _rx_buffer[256];
 packet_handler _packet_handler_app;
 
 #define TXD_PIN 17
 #define RXD_PIN 18
 
-void uart_init(QueueHandle_t *queue_message_to_send, uint8_t *rx_buffer, packet_handler packet_handler_app){
+void uart_init(QueueHandle_t *queue_message_to_send, packet_handler packet_handler_app){
     _queue_message_to_send = queue_message_to_send;
-    _rx_buffer = rx_buffer;
     _packet_handler_app = packet_handler_app;
 
     const uart_config_t uart_config = {
@@ -61,6 +60,9 @@ static void rx_task(void *arg)
             _rx_buffer[rxBytes] = 0;
             ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, _rx_buffer);
             ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, _rx_buffer, rxBytes, ESP_LOG_INFO);
+        }
+        if (rxBytes >= sizeof (uart_data_t)){
+            _packet_handler_app((char*)_rx_buffer);
         }
     }
 }

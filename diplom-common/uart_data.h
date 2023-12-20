@@ -7,7 +7,7 @@
 
 #define DATA_SIZE 137
 
-typedef void (*packet_handler)(void);
+typedef void (*packet_handler)(char *rx_buffer);
 
 typedef enum {
     DATA_TYPE_CMD,
@@ -18,8 +18,8 @@ typedef enum {
 typedef enum {
     COMMAND_ON_LOAD,
     COMMAND_OFF_LOAD,
-    COMMAND_SUBSCRIBLE_TOPIC,
-    COMMAND_UNSUBSCRIBLE_TOPIC,
+    COMMAND_SUBSCRIBE_TOPIC,
+    COMMAND_UNSUBSCRIBE_TOPIC,
 }commands_e;
 
 typedef enum {
@@ -27,8 +27,8 @@ typedef enum {
     STATUS_WIFI_IS_CONNECT,
     STATUS_CONNECTING_MQTT_SERVER,
     STATUS_MQTT_SERVER_IS_CONNECT,
-    STATUS_SUBSCRIBLE_OK,
-    STATUS_UNSUBSCRIBLE_OK,
+    STATUS_SUBSCRIBE_OK,
+    STATUS_UNSUBSCRIBE_OK,
     STATUS_MQTT_RCV_DATA,
     STATUS_MQTT_DISCONNECTED,
 }state_e;
