@@ -21,7 +21,7 @@
 #include "crc8.h"
 #endif
 
-void mqtt_app_start(esp_mqtt_client_handle_t* mqtt_client);
+void mqtt_app_start(esp_mqtt_client_handle_t* mqtt_client, QueueHandle_t* queue_message_to_send);
 static parametr_name_e get_param_name(char *topic_name);
 void mqtt_subscribe(char* group);
 void mqtt_unsubscribe(char* group);
