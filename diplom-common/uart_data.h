@@ -5,6 +5,9 @@
 #ifndef DIPLOM_ESP32_MQTT_ADAPTER_UART_DATA_H
 #define DIPLOM_ESP32_MQTT_ADAPTER_UART_DATA_H
 
+#define TO_DWIN 82
+#define FROM_DWIN 83
+
 #define DATA_SIZE 137
 
 typedef void (*packet_handler)(char *rx_buffer);
@@ -48,5 +51,20 @@ typedef struct uart_data {
     uint8_t id_parametr;
     uint8_t crc;
 } uart_data_t;
+
+#define HEADER_PACKET       0xA55A //0x5AA5
+#define ADDR_TEMPERATURE    0x0051 //0x5100
+#define ADDR_HUMIDITY       0x0051 //0x5100
+#define ADDR_INSOL          0x0051 //0x5100
+#define ADDR_INPUT          0x0051 //0x5100
+#define ADDR_MESSAGE        0x0051 //0x5100
+
+typedef struct dwin_data {
+    uint16_t header;
+    uint8_t len;
+    uint8_t direction;
+    uint16_t address;
+    char data[128];
+}dwin_data_t;
 
 #endif //DIPLOM_ESP32_MQTT_ADAPTER_UART_DATA_H
