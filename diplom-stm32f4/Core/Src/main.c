@@ -57,7 +57,10 @@ static void MX_USART2_UART_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
-
+void StartRcvFromEspTask(void const * argument);
+void StartSendToEspTask(void const * argument);
+void StartRcvFromDWINTask(void const * argument);
+void StartSendToDWINTask(void const * argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -122,6 +125,17 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+    osThreadDef(RcvFromEspDataTask, StartRcvFromEspTask, osPriorityNormal, 0, 128);
+    defaultTaskHandle = osThreadCreate(osThread(RcvFromEspDataTask), NULL);
+
+    osThreadDef(SendToEspDataTask, StartSendToEspTask, osPriorityNormal, 0, 128);
+    defaultTaskHandle = osThreadCreate(osThread(SendToEspDataTask), NULL);
+
+    osThreadDef(RcvFromDWINDataTask, StartRcvFromDWINTask, osPriorityNormal, 0, 128);
+    defaultTaskHandle = osThreadCreate(osThread(RcvFromDWINDataTask), NULL);
+
+    osThreadDef(SendToDWINDataTask, StartSendToDWINTask, osPriorityNormal, 0, 128);
+    defaultTaskHandle = osThreadCreate(osThread(SendToDWINDataTask), NULL);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -270,7 +284,49 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void StartRcvFromEspTask(void const * argument)
+{
+    /* USER CODE BEGIN 5 */
+    /* Infinite loop */
+    for(;;)
+    {
+        osDelay(1);
+    }
+    /* USER CODE END 5 */
+}
 
+void StartSendToEspTask(void const * argument)
+{
+    /* USER CODE BEGIN 5 */
+    /* Infinite loop */
+    for(;;)
+    {
+        osDelay(1);
+    }
+    /* USER CODE END 5 */
+}
+
+void StartRcvFromDWINTask(void const * argument)
+{
+    /* USER CODE BEGIN 5 */
+    /* Infinite loop */
+    for(;;)
+    {
+        osDelay(1);
+    }
+    /* USER CODE END 5 */
+}
+
+void StartSendToDWINTask(void const * argument)
+{
+    /* USER CODE BEGIN 5 */
+    /* Infinite loop */
+    for(;;)
+    {
+        osDelay(1);
+    }
+    /* USER CODE END 5 */
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
