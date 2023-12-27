@@ -67,8 +67,8 @@ void Error_Handler(void);
 #define USART_DWIN_RX_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
-#define USART_ESP USART1
-#define USART_DWIN USART2
+#define USART_ESP USART2
+#define USART_DWIN USART1
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
