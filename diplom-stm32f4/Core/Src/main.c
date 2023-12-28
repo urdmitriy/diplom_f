@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "uart_data.h"
+#include "crc8.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,8 +46,10 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 osThreadId defaultTaskHandle;
+osMessageQId queue_dwin_sendHandle;
+osSemaphoreId sem_rcv_data_from_mqttHandle;
 /* USER CODE BEGIN PV */
-
+char rx_data_esp[150];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -103,8 +106,13 @@ int main(void)
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
+
   /* USER CODE END RTOS_MUTEX */
+
+  /* Create the semaphores(s) */
+  /* definition and creation of sem_rcv_data_from_mqtt */
+  osSemaphoreDef(sem_rcv_data_from_mqtt);
+  sem_rcv_data_from_mqttHandle = osSemaphoreCreate(osSemaphore(sem_rcv_data_from_mqtt), 1);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -113,6 +121,11 @@ int main(void)
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* definition and creation of queue_dwin_send */
+  osMessageQDef(queue_dwin_send, 16, uart_data_t);
+  queue_dwin_sendHandle = osMessageCreate(osMessageQ(queue_dwin_send), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -136,6 +149,8 @@ int main(void)
 
     osThreadDef(SendToDWINDataTask, StartSendToDWINTask, osPriorityNormal, 0, 128);
     defaultTaskHandle = osThreadCreate(osThread(SendToDWINDataTask), NULL);
+
+    HAL_UARTEx_ReceiveToIdle_IT(&huart2, (uint8_t*)rx_data_esp,200);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -298,10 +313,62 @@ void StartRcvFromEspTask(void const * argument)
 void StartSendToEspTask(void const * argument)
 {
     /* USER CODE BEGIN 5 */
+    dwin_data_t dwin_data;
     /* Infinite loop */
     for(;;)
     {
-        osDelay(1);
+        xSemaphoreTake(sem_rcv_data_from_mqttHandle, portMAX_DELAY);
+        HAL_UART_AbortReceive_IT(&huart2);
+
+        uart_data_t* uart_data = (uart_data_t*)rx_data_esp;
+
+        if (uart_data->crc == crc8ccitt(uart_data, DATA_SIZE)){
+
+            memset(&dwin_data, (int)'\0',sizeof (dwin_data));
+            size_t len_data = strlen(uart_data->value);
+
+            dwin_data.header = HEADER_PACKET;
+            dwin_data.len = len_data + sizeof (dwin_data.address) + sizeof (dwin_data.direction);
+            dwin_data.direction = TO_DWIN;
+            memcpy(dwin_data.data, uart_data->value, len_data);
+
+            switch (uart_data->data_type) {
+                case DATA_TYPE_STATE:
+                    dwin_data.address = ADDR_MESSAGE;
+                    xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
+                    break;
+                case DATA_TYPE_DATA:
+
+                    switch ((parametr_name_e)uart_data->id_parametr) {
+                        case PARAMETR_TEMP:
+                            dwin_data.address = ADDR_TEMPERATURE;
+                            xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
+                            break;
+                        case PARAMETR_HUMIDITY:
+                            dwin_data.address = ADDR_HUMIDITY;
+                            xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
+                            break;
+                        case PARAMETR_INSOL:
+                            dwin_data.address = ADDR_INSOL;
+                            xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
+                            break;
+                        case PARAMETR_INPUTS:
+                            dwin_data.address = ADDR_INPUT;
+                            xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
+                            break;
+                        case PARAMETR_NA:
+                        default:
+                            break;
+                    }
+                    break;
+                case DATA_TYPE_CMD:
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        HAL_UARTEx_ReceiveToIdle_IT(&huart2, (uint8_t*)rx_data_esp,200);
     }
     /* USER CODE END 5 */
 }
@@ -320,12 +387,24 @@ void StartRcvFromDWINTask(void const * argument)
 void StartSendToDWINTask(void const * argument)
 {
     /* USER CODE BEGIN 5 */
+    dwin_data_t dwin_data;
     /* Infinite loop */
     for(;;)
     {
-        osDelay(1);
+        xQueueReceive(queue_dwin_sendHandle, &dwin_data, portMAX_DELAY);
+        HAL_UART_Transmit(&huart1, (uint8_t*)&dwin_data, sizeof (dwin_data_t), 50);
+        osDelay(10);
     }
     /* USER CODE END 5 */
+}
+
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
+
+    if (huart == &huart2) {
+        portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
+        xSemaphoreGiveFromISR(sem_rcv_data_from_mqttHandle, &xHigherPriorityTaskWoken);
+    }
+
 }
 /* USER CODE END 4 */
 
@@ -339,11 +418,11 @@ void StartSendToDWINTask(void const * argument)
 void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+    /* Infinite loop */
+    for(;;)
+    {
+        osDelay(1);
+    }
   /* USER CODE END 5 */
 }
 

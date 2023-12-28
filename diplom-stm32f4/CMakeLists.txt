@@ -53,7 +53,7 @@ include_directories(Core/Inc Drivers/STM32F4xx_HAL_Driver/Inc Drivers/STM32F4xx_
 
 add_definitions(-DDEBUG -DUSE_HAL_DRIVER -DSTM32F401xC)
 
-file(GLOB_RECURSE SOURCES "Core/*.*" "Middlewares/*.*" "Drivers/*.*"  "../diplom-common/uart_data.h")
+file(GLOB_RECURSE SOURCES "Core/*.*" "Middlewares/*.*" "Drivers/*.*"  "../diplom-common/uart_data.h"  "../diplom-common/crc8.*")
 
 set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/STM32F401CCUX_FLASH.ld)
 

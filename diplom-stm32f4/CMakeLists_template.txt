@@ -52,7 +52,7 @@ include_directories(${includes}  ../diplom-common)
 
 add_definitions(${defines})
 
-file(GLOB_RECURSE SOURCES ${sources}  "../diplom-common/uart_data.h")
+file(GLOB_RECURSE SOURCES ${sources}  "../diplom-common/uart_data.h"  "../diplom-common/crc8.*")
 
 set(LINKER_SCRIPT $${CMAKE_SOURCE_DIR}/${linkerScript})
 
