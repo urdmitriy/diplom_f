@@ -13,7 +13,8 @@
 
 void app_main(void)
 {
-    static esp_mqtt_client_handle_t mqtt_client;
+    static esp_mqtt_client_handle_t mqtt_client_publish;
+    static esp_mqtt_client_handle_t mqtt_client_subscribe;
     static QueueHandle_t queue_message_to_send = NULL;
     queue_message_to_send = xQueueCreate(50, sizeof(uart_data_t));
 
@@ -28,7 +29,7 @@ void app_main(void)
 
     uart_init(uart_data_handler, &queue_message_to_send);
     leds_init();
-    wifi_init_sta(&queue_message_to_send, &mqtt_client);
+    wifi_init_sta(&queue_message_to_send, &mqtt_client_publish, &mqtt_client_subscribe);
     ESP_ERROR_CHECK(esp_netif_init());
 
 

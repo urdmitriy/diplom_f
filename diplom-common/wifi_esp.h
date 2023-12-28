@@ -14,6 +14,11 @@
 #include "uart_esp.h"
 #include "mqtt_esp.h"
 
-void wifi_init_sta(QueueHandle_t* queue_message_to_send, esp_mqtt_client_handle_t* client);
+#if defined ESP_PUBLISHER
+void wifi_init_sta(esp_mqtt_client_handle_t* client_publish, esp_mqtt_client_handle_t* client_subscribe);
+#elif defined ESP_MQTT_ADAPTER
+void wifi_init_sta(QueueHandle_t* queue_message_to_send, esp_mqtt_client_handle_t* client_publish, esp_mqtt_client_handle_t* client_subscribe);
+#endif
+
 
 #endif //DIPLOM_ESP32_WIFI_ESP_H

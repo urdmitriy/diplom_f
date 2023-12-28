@@ -18,7 +18,8 @@ static const char *TAG_W = "wifi station";
 static int s_retry_num = 0;
 
 static QueueHandle_t* _queue_message_to_send;
-static esp_mqtt_client_handle_t* _client;
+static esp_mqtt_client_handle_t* _client_publish;
+static esp_mqtt_client_handle_t* _client_subscribe;
 
 static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
 {
@@ -44,18 +45,26 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
         leds_flash(LED_BLUE, 500);
 #elif defined ESP_MQTT_ADAPTER
         leds_flash(LED_GREEN, 500);
-        mqtt_app_start(_client, _queue_message_to_send);
+        mqtt_app_start(_client_publish, _client_subscribe, _queue_message_to_send);
 //        send_status_mqtt_adapter(STATUS_WIFI_IS_CONNECT);
 
 #endif
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
+#if defined ESP_PUBLISHER
+void wifi_init_sta(esp_mqtt_client_handle_t* client_publish, esp_mqtt_client_handle_t* client_subscribe)
+#elif defined ESP_MQTT_ADAPTER
+void wifi_init_sta(QueueHandle_t* queue_message_to_send, esp_mqtt_client_handle_t* client_publish, esp_mqtt_client_handle_t* client_subscribe)
+#endif
 
-void wifi_init_sta(QueueHandle_t* queue_message_to_send, esp_mqtt_client_handle_t* client)
 {
-    _client = client;
+    _client_publish = client_publish;
+    _client_subscribe = client_subscribe;
+#if defined ESP_PUBLISHER
+#elif defined ESP_MQTT_ADAPTER
     _queue_message_to_send = queue_message_to_send;
+#endif
 
     s_wifi_event_group = xEventGroupCreate();
 

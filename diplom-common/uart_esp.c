@@ -42,7 +42,7 @@ static void tx_task(void *arg)
     uart_data_t data_to_send;
     for (; ; ) {
         if (xQueueReceive(*_queue_message_to_send, &data_to_send, pdMS_TO_TICKS(10))){
-            ESP_LOGI("UART", "Data ready to send! value=%lu, data_type=%d", data_to_send.value_uint32, data_to_send.data_type);
+            ESP_LOGI("UART", "Data ready to send! value=%s, data_type=%d", data_to_send.value, data_to_send.data_type);
             sendData((char*) &data_to_send);
             vTaskDelay(pdMS_TO_TICKS(10));
         }
@@ -68,8 +68,7 @@ static void rx_task(void *arg)
 void send_status_mqtt_adapter(state_e status){
     uart_data_t data_to_send;
     data_to_send.data_type = DATA_TYPE_STATE;
-    data_to_send.value_uint32 = 0;
-    memset((uint8_t*)data_to_send.value_string, '\0', sizeof (data_to_send.value_string));
+    memset((uint8_t*)data_to_send.value, '\0', sizeof (data_to_send.value));
     data_to_send.id_parametr = (int)status;
     data_to_send.crc = crc8ccitt((uint8_t*)&data_to_send, DATA_SIZE);
     sendData((char*)&data_to_send);

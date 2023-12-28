@@ -14,7 +14,8 @@
 #define PIN_DI 7
 //ADC1_1
 
-esp_mqtt_client_handle_t mqtt_client;
+esp_mqtt_client_handle_t mqtt_client_publish;
+esp_mqtt_client_handle_t mqtt_client_subscibe;
 
 void app_main(void)
 {
@@ -28,12 +29,12 @@ void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     leds_init();
-    dht11_init(PIN_SENSOR_TEMPER, &mqtt_client);
-    di_init(PIN_DI, &mqtt_client);
-    light_sensor_init(ADC_CHANNEL_1, &mqtt_client);
-    wifi_init_sta();
+    dht11_init(PIN_SENSOR_TEMPER, &mqtt_client_publish);
+    di_init(PIN_DI, &mqtt_client_publish);
+    light_sensor_init(ADC_CHANNEL_1, &mqtt_client_publish);
+    wifi_init_sta(&mqtt_client_publish, &mqtt_client_subscibe);
     ESP_ERROR_CHECK(esp_netif_init());
-    mqtt_app_start(&mqtt_client);
+    mqtt_app_start(&mqtt_client_publish, &mqtt_client_subscibe);
 
     while (1){ ; }
 }
