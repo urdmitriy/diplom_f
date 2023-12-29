@@ -4,7 +4,6 @@
 
 #include "mqtt_esp.h"
 
-
 static QueueHandle_t* _queue_message_to_send;
 static esp_mqtt_client_handle_t* _client_to_publish;
 static esp_mqtt_client_handle_t* _client_to_subscribe;
@@ -189,9 +188,9 @@ void mqtt_app_start(esp_mqtt_client_handle_t* mqtt_client_publish, esp_mqtt_clie
     esp_mqtt_client_config_t mqtt_cfg_suscribe = {
             .broker.address.uri = "mqtt://erinaceto.ru",
             .broker.address.port = 1883,
-            .credentials.authentication.password = "qwope354F",
-            .credentials.username = "user",
-    };
+            .credentials.authentication.certificate = "",
+            .credentials.authentication.key = "",
+    }; //https://github.com/espressif/esp-mqtt/issues/125?ysclid=lqqc6jdja0255111744
 
     *_client_to_subscribe = esp_mqtt_client_init(&mqtt_cfg_suscribe);
     *_client_to_publish = esp_mqtt_client_init(&mqtt_cfg_publish);
