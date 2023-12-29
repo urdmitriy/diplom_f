@@ -3,6 +3,7 @@
 //
 
 #include "mqtt_esp.h"
+#include "esp_mac.h"
 
 static QueueHandle_t* _queue_message_to_send;
 static esp_mqtt_client_handle_t* _client_to_publish;
@@ -178,24 +179,34 @@ void mqtt_app_start(esp_mqtt_client_handle_t* mqtt_client_publish, esp_mqtt_clie
 #endif
     _client_to_subscribe = mqtt_client_subscibe;
     _client_to_publish = mqtt_client_publish;
-
+    char mac_addr[10];
+    esp_base_mac_addr_get((uint8_t*)mac_addr);
     esp_mqtt_client_config_t mqtt_cfg_publish = {
             .broker.address.uri = "mqtt://erinaceto.ru",
             .broker.address.port = 1883,
             .credentials.authentication.password = "qwope354F",
             .credentials.username = "user",
     };
-    esp_mqtt_client_config_t mqtt_cfg_suscribe = {
+    sprintf(mqtt_cfg_publish.credentials.client_id, "ESP32_%s_publish", mac_addr);
+
+    esp_mqtt_client_config_t mqtt_cfg_subscribe = {
+            .credentials.client_id = "ESP32_%CHIPID%_subscribe",
             .broker.address.uri = "mqtt://erinaceto.ru",
             .broker.address.port = 1883,
-            .credentials.authentication.certificate = "",
-            .credentials.authentication.key = "",
+            .credentials.authentication.password = "qwope354F",
+            .credentials.username = "user",
+            //.credentials.authentication.certificate = "",
+            //.credentials.authentication.key = "",
+            //.broker.verification.use_global_ca_store = true,
     }; //https://github.com/espressif/esp-mqtt/issues/125?ysclid=lqqc6jdja0255111744
+    sprintf(mqtt_cfg_subscribe.credentials.client_id, "ESP32_%s_subscribe", mac_addr);
 
-    *_client_to_subscribe = esp_mqtt_client_init(&mqtt_cfg_suscribe);
+    *_client_to_subscribe = esp_mqtt_client_init(&mqtt_cfg_subscribe);
     *_client_to_publish = esp_mqtt_client_init(&mqtt_cfg_publish);
-    esp_mqtt_client_register_event(*_client_to_subscribe, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
-    esp_mqtt_client_register_event(*_client_to_publish, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
+
+    esp_mqtt_client_register_event(*_client_to_subscribe, ESP_EVENT_ANY_ID, mqtt_event_handler, _client_to_subscribe);
+    esp_mqtt_client_register_event(*_client_to_publish, ESP_EVENT_ANY_ID, mqtt_event_handler, _client_to_publish);
+
     esp_mqtt_client_start(*_client_to_subscribe);
     esp_mqtt_client_start(*_client_to_publish);
 }
