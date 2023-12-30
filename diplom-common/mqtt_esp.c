@@ -50,7 +50,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     switch ((esp_mqtt_event_id_t)event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI("TAG_MQTT", "MQTT_EVENT_CONNECTED");
-
+            esp_mqtt_client_handle_t* _client = (esp_mqtt_client_handle_t*)handler_args;
 #if defined ESP_PUBLISHER
             xTaskCreate(dht11_vTask_read, "DHT11", 4096, NULL, 1, NULL);
             xTaskCreate(di_vTask, "di_vTask", 2048, NULL, 10, NULL);
@@ -59,7 +59,11 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             esp_mqtt_client_subscribe(*_client_to_publish, "gb_iot/2950_UDA/onpayload", 0);
 #elif defined ESP_MQTT_ADAPTER
             send_status_mqtt_adapter(STATUS_MQTT_SERVER_IS_CONNECT);
-            mqtt_subscribe("2950_UDA");
+            if (_client == _client_to_subscribe){
+                mqtt_subscribe("2950_UDA");
+                esp_mqtt_client_start(*_client_to_publish);
+            }
+
 #endif
             break;
 
@@ -114,8 +118,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
             data.data_type = DATA_TYPE_DATA;
             data.id_parametr = (int)get_param_name(topic);
-            sprintf(data.value, "%s", data_topic);
             memset((uint8_t*)data.value, '\0', sizeof (data.value));
+            sprintf(data.value,"%.*s", event->data_len, event->data);
             data.crc = crc8ccitt((uint8_t*)&data, DATA_SIZE);
 
             ESP_LOGI("RES", "Data type = %d, parametr = %d, value = %s, crc = %d", data.data_type, data.id_parametr, data.value, data.crc);
@@ -184,22 +188,21 @@ void mqtt_app_start(esp_mqtt_client_handle_t* mqtt_client_publish, esp_mqtt_clie
     esp_mqtt_client_config_t mqtt_cfg_publish = {
             .broker.address.uri = "mqtt://erinaceto.ru",
             .broker.address.port = 1883,
+            .credentials.client_id = "ESP_publish",
             .credentials.authentication.password = "qwope354F",
             .credentials.username = "user",
     };
-    sprintf(mqtt_cfg_publish.credentials.client_id, "ESP32_%s_publish", mac_addr);
 
     esp_mqtt_client_config_t mqtt_cfg_subscribe = {
-            .credentials.client_id = "ESP32_%CHIPID%_subscribe",
             .broker.address.uri = "mqtt://erinaceto.ru",
             .broker.address.port = 1883,
+            .credentials.client_id = "ESP_subscribe",
             .credentials.authentication.password = "qwope354F",
             .credentials.username = "user",
             //.credentials.authentication.certificate = "",
             //.credentials.authentication.key = "",
             //.broker.verification.use_global_ca_store = true,
     }; //https://github.com/espressif/esp-mqtt/issues/125?ysclid=lqqc6jdja0255111744
-    sprintf(mqtt_cfg_subscribe.credentials.client_id, "ESP32_%s_subscribe", mac_addr);
 
     *_client_to_subscribe = esp_mqtt_client_init(&mqtt_cfg_subscribe);
     *_client_to_publish = esp_mqtt_client_init(&mqtt_cfg_publish);

@@ -46,8 +46,8 @@ typedef enum {
 }parametr_name_e;
 
 typedef struct uart_data {
-    packet_type_e data_type;
-    char value[128];
+    uint32_t data_type;
+    char value[135];
     uint8_t id_parametr;
     uint8_t crc;
 } uart_data_t;
