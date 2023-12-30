@@ -6,8 +6,8 @@
 #define DIPLOM_ESP32_MQTT_ADAPTER_UART_DATA_H
 #include <stdio.h>
 
-#define TO_DWIN 82
-#define FROM_DWIN 83
+#define TO_DWIN 0x82
+#define FROM_DWIN 0x83
 
 #define DATA_SIZE 137
 
