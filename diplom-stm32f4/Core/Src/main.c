@@ -49,7 +49,9 @@ osThreadId defaultTaskHandle;
 osMessageQId queue_dwin_sendHandle;
 osMessageQId queue_data_from_espHandle;
 osSemaphoreId sem_rcv_data_from_mqttHandle;
+
 /* USER CODE BEGIN PV */
+osSemaphoreId sem_led_blinkHandle;
 volatile char rx_data_esp[sizeof (uart_data_t)];
 /* USER CODE END PV */
 
@@ -65,6 +67,7 @@ void StartRcvFromEspTask(void const * argument);
 void StartSendToEspTask(void const * argument);
 void StartRcvFromDWINTask(void const * argument);
 void StartSendToDWINTask(void const * argument);
+void LedBlinkTask(void const * argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -117,6 +120,8 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
+    osSemaphoreDef(sem_led_on);
+    sem_led_blinkHandle = osSemaphoreCreate(osSemaphore(sem_led_on), 1);
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -143,7 +148,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
-    osThreadDef(RcvFromEspDataTask, StartRcvFromEspTask, osPriorityNormal, 0, 2048);
+    osThreadDef(RcvFromEspDataTask, StartRcvFromEspTask, osPriorityNormal, 0, 128);
     defaultTaskHandle = osThreadCreate(osThread(RcvFromEspDataTask), NULL);
 
     osThreadDef(SendToEspDataTask, StartSendToEspTask, osPriorityNormal, 0, 128);
@@ -154,6 +159,9 @@ int main(void)
 
     osThreadDef(SendToDWINDataTask, StartSendToDWINTask, osPriorityNormal, 0, 128);
     defaultTaskHandle = osThreadCreate(osThread(SendToDWINDataTask), NULL);
+
+    osThreadDef(LebBlinkTask, LedBlinkTask, osPriorityNormal, 0, 128);
+    defaultTaskHandle = osThreadCreate(osThread(LebBlinkTask), NULL);
 
     HAL_UARTEx_ReceiveToIdle_IT(&huart2, (uint8_t*)rx_data_esp,sizeof (uart_data_t));
     HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
@@ -326,12 +334,8 @@ void StartRcvFromEspTask(void const * argument)
     for(;;)
     {
         xQueueReceive(queue_data_from_espHandle, &uart_data_rcv, portMAX_DELAY);
-
+        xSemaphoreGive(sem_led_blinkHandle);
         if (uart_data_rcv.crc == crc8ccitt(&uart_data_rcv, DATA_SIZE) && uart_data_rcv.crc != 0){
-
-            HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
-            vTaskDelay(pdMS_TO_TICKS(10));
-            HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
 
             memset(&dwin_data, '\0',sizeof (dwin_data));
             size_t len_data = strlen(uart_data_rcv.value);
@@ -414,7 +418,22 @@ void StartSendToDWINTask(void const * argument)
         xQueueReceive(queue_dwin_sendHandle, &dwin_data, portMAX_DELAY);
         size_t len_packet = dwin_data.len + sizeof (dwin_data.header);
         HAL_UART_Transmit(&huart1, (uint8_t*)&dwin_data, len_packet, 50);
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+    /* USER CODE END 5 */
+}
+
+void LebBlinkTask(void const * argument)
+{
+    /* USER CODE BEGIN 5 */
+
+    /* Infinite loop */
+    for(;;)
+    {
+        xSemaphoreTake(sem_led_blinkHandle, portMAX_DELAY);
+        HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
         vTaskDelay(pdMS_TO_TICKS(10));
+        HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
     }
     /* USER CODE END 5 */
 }
