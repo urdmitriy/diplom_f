@@ -4,16 +4,22 @@
 
 #include "uart_esp.h"
 
-QueueHandle_t *_queue_message_to_send;
+static QueueHandle_t _queue_message_to_send;
 static uint8_t _rx_buffer[256];
 packet_handler _packet_handler_app;
+mqtt_publish_app _mqttPublishApp;
+mqtt_subscribe_app _mqttSubscribeApp;
+mqtt_unsubscribe_app _mqttUnsubscribeApp;
 
 #define TXD_PIN 17
 #define RXD_PIN 18
 
-void uart_init(packet_handler packet_handler_app, QueueHandle_t *queue_message_to_send){
-    _packet_handler_app = packet_handler_app;
-    _queue_message_to_send = queue_message_to_send;
+void uart_init(mqtt_publish_app mqttPublishApp, mqtt_subscribe_app mqttSubscribeApp, mqtt_unsubscribe_app mqttUnsubscribeApp){
+
+    _mqttPublishApp = mqttPublishApp;
+    _mqttSubscribeApp = mqttSubscribeApp;
+    _mqttUnsubscribeApp = mqttUnsubscribeApp;
+    _queue_message_to_send = xQueueCreate(50, sizeof(uart_data_t));
 
     const uart_config_t uart_config = {
             .baud_rate = 115200,
@@ -41,8 +47,8 @@ static void tx_task(void *arg)
 {
     uart_data_t data_to_send;
     for (; ; ) {
-        if (xQueueReceive(*_queue_message_to_send, &data_to_send, pdMS_TO_TICKS(10))){
-            ESP_LOGI("UART", "Data ready to send! value=%s, data_type=%d", data_to_send.value, data_to_send.data_type);
+        if (xQueueReceive(_queue_message_to_send, &data_to_send, pdMS_TO_TICKS(10))){
+            ESP_LOGI("UART", "Data ready to send! value=%s, data_type=%lu", data_to_send.value, data_to_send.data_type);
             sendData((char*) &data_to_send);
         }
     }
@@ -59,16 +65,65 @@ static void rx_task(void *arg)
             ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, _rx_buffer, rxBytes, ESP_LOG_INFO);
         }
         if (rxBytes >= sizeof (uart_data_t)){
-            _packet_handler_app((char*)_rx_buffer);
+            uart_esp_uart_data_handler((char*)_rx_buffer);
         }
     }
 }
 
-void send_status_mqtt_adapter(state_e status){
+void send_status_mqtt_adapter(char * message){
     uart_data_t data_to_send;
     data_to_send.data_type = DATA_TYPE_STATE;
     memset((uint8_t*)data_to_send.value, '\0', sizeof (data_to_send.value));
-    data_to_send.id_parametr = (int)status;
+    memcpy(&data_to_send.value, message, strlen(message));
     data_to_send.crc = crc8ccitt((uint8_t*)&data_to_send, DATA_SIZE);
-    sendData((char*)&data_to_send);
+    xQueueSend(_queue_message_to_send, &data_to_send, pdMS_TO_TICKS(10));
+}
+
+void uart_esp_uart_data_handler(char *rx_buffer){
+
+    uart_data_t data_rcv = *(uart_data_t*)rx_buffer;
+
+    if (data_rcv.crc != crc8ccitt(&data_rcv, DATA_SIZE) && data_rcv.crc != 0) return;
+    char topic_master[128];
+    switch (data_rcv.data_type) {
+        case DATA_TYPE_CMD:
+            switch ((commands_e)data_rcv.id_parametr) {
+
+                case COMMAND_SUBSCRIBE_TOPIC:{
+                    strcpy(topic_master, data_rcv.value);
+                    _mqttSubscribeApp(topic_master);
+                }
+                    break;
+                case COMMAND_UNSUBSCRIBE_TOPIC: {
+                    strcpy(topic_master, data_rcv.value);
+                    _mqttUnsubscribeApp(topic_master);
+                }
+                    break;
+                case COMMAND_OFF_LOAD:{
+                    char topic[128], message[10];
+                    sprintf(topic, BASE_TOPIC_NAME, "onpayload");
+                    sprintf(message, "0");
+                    _mqttPublishApp(topic, message);
+                }
+                    break;
+                case COMMAND_ON_LOAD:{
+                    char topic[128], message[10];
+                    sprintf(topic, BASE_TOPIC_NAME, "onpayload");
+                    sprintf(message, "1");
+                    _mqttPublishApp(topic, message);
+                }
+                    break;
+                default:
+                    break;
+            }
+            break;
+
+        case DATA_TYPE_DATA:{
+            xQueueSend(_queue_message_to_send, &data_rcv, pdMS_TO_TICKS(10));
+        }
+            break;
+        case DATA_TYPE_STATE:
+        default:
+            break;
+    }
 }

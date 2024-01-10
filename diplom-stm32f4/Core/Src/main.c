@@ -8,6 +8,7 @@
   *
   * Copyright (c) 2023 STMicroelectronics.
   * All rights reserved.
+  * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
   * in the root directory of this software component.
@@ -48,11 +49,13 @@ UART_HandleTypeDef huart2;
 osThreadId defaultTaskHandle;
 osMessageQId queue_dwin_sendHandle;
 osMessageQId queue_data_from_espHandle;
+osMessageQId queue_esp_sendHandle;
+osMessageQId queue_data_from_dwinHandle;
 osSemaphoreId sem_rcv_data_from_mqttHandle;
-
 /* USER CODE BEGIN PV */
 osSemaphoreId sem_led_blinkHandle;
 volatile char rx_data_esp[sizeof (uart_data_t)];
+volatile char rx_data_dwin[sizeof (dwin_data_t)];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -130,12 +133,20 @@ int main(void)
 
   /* Create the queue(s) */
   /* definition and creation of queue_dwin_send */
-  osMessageQDef(queue_dwin_send, 1, uart_data_t);
+  osMessageQDef(queue_dwin_send, 16, dwin_data_t);
   queue_dwin_sendHandle = osMessageCreate(osMessageQ(queue_dwin_send), NULL);
 
   /* definition and creation of queue_data_from_esp */
-  osMessageQDef(queue_data_from_esp, 5, uart_data_t);
+  osMessageQDef(queue_data_from_esp, 16, uart_data_t);
   queue_data_from_espHandle = osMessageCreate(osMessageQ(queue_data_from_esp), NULL);
+
+  /* definition and creation of queue_esp_send */
+  osMessageQDef(queue_esp_send, 10, uart_data_t);
+  queue_esp_sendHandle = osMessageCreate(osMessageQ(queue_esp_send), NULL);
+
+  /* definition and creation of queue_data_from_dwin */
+  osMessageQDef(queue_data_from_dwin, 10, dwin_data_t);
+  queue_data_from_dwinHandle = osMessageCreate(osMessageQ(queue_data_from_dwin), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -160,10 +171,11 @@ int main(void)
     osThreadDef(SendToDWINDataTask, StartSendToDWINTask, osPriorityNormal, 0, 128);
     defaultTaskHandle = osThreadCreate(osThread(SendToDWINDataTask), NULL);
 
-    osThreadDef(LebBlinkTask, LedBlinkTask, osPriorityNormal, 0, 128);
-    defaultTaskHandle = osThreadCreate(osThread(LebBlinkTask), NULL);
+    osThreadDef(LedBlinkTask, LedBlinkTask, osPriorityNormal, 0, 128);
+    defaultTaskHandle = osThreadCreate(osThread(LedBlinkTask), NULL);
 
     HAL_UARTEx_ReceiveToIdle_IT(&huart2, (uint8_t*)rx_data_esp,sizeof (uart_data_t));
+    HAL_UARTEx_ReceiveToIdle_IT(&huart1, (uint8_t*)rx_data_dwin,sizeof (dwin_data_t));
     HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
 
   /* USER CODE END RTOS_THREADS */
@@ -341,38 +353,85 @@ void StartRcvFromEspTask(void const * argument)
             size_t len_data = strlen(uart_data_rcv.value);
 
             dwin_data.header = HEADER_PACKET;
-            dwin_data.len = len_data + sizeof (dwin_data.len) + sizeof (dwin_data.address) + sizeof (dwin_data.direction);
+            dwin_data.len = len_data + sizeof (dwin_data.address) + sizeof (dwin_data.direction);
 
             dwin_data.direction = TO_DWIN;
             memcpy(dwin_data.data, uart_data_rcv.value, len_data);
 
+            int len_data_must_be;
+
             switch ((packet_type_e)uart_data_rcv.data_type) {
                 case DATA_TYPE_STATE:
                     dwin_data.address = ADDR_MESSAGE;
+                    for (int i = (int)len_data; i < MESSAGE_LEN; ++i) {
+                        dwin_data.data[i] = ' ';
+                        dwin_data.len++;
+                    }
                     xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
                     break;
                 case DATA_TYPE_DATA:
 
                     switch ((parametr_name_e)uart_data_rcv.id_parametr) {
                         case PARAMETR_TEMP:
+                            len_data_must_be = 5;
                             dwin_data.address = ADDR_TEMPERATURE;
-                            xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
                             break;
                         case PARAMETR_HUMIDITY:
+                            len_data_must_be = 5;
                             dwin_data.address = ADDR_HUMIDITY;
-                            xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
                             break;
                         case PARAMETR_INSOL:
+                            len_data_must_be = 5;
                             dwin_data.address = ADDR_INSOL;
-                            xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
                             break;
                         case PARAMETR_INPUTS:
+                            len_data_must_be = 2;
                             dwin_data.address = ADDR_INPUT;
-                            xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
+                            if (dwin_data.data[0] == '1'){
+                                dwin_data.data[0] = 0x00;
+                                dwin_data.data[1] = 0x01;
+                                dwin_data.len++;
+                                len_data++;
+                            } else if (dwin_data.data[0] == '0'){
+                                dwin_data.data[0] = 0x00;
+                                dwin_data.data[1] = 0x00;
+                                dwin_data.len++;
+                                len_data++;
+                            }
+                            break;
+                        case PARAMETR_ONPAYLOAD:
+                            len_data_must_be = 2;
+                            dwin_data.address = ADDR_PAYLOAD;
+                            if (dwin_data.data[0] == '1'){
+                                dwin_data.data[0] = 0x00;
+                                dwin_data.data[1] = 0x01;
+                                dwin_data.len++;
+                                len_data++;
+                            } else if (dwin_data.data[0] == '0'){
+                                dwin_data.data[0] = 0x00;
+                                dwin_data.data[1] = 0x00;
+                                dwin_data.len++;
+                                len_data++;
+                            }
                             break;
                         case PARAMETR_NA:
                         default:
                             break;
+                    }
+                    if ((parametr_name_e) uart_data_rcv.id_parametr == PARAMETR_TEMP ||
+                        (parametr_name_e) uart_data_rcv.id_parametr == PARAMETR_HUMIDITY ||
+                        (parametr_name_e) uart_data_rcv.id_parametr == PARAMETR_INSOL ||
+                        (parametr_name_e) uart_data_rcv.id_parametr == PARAMETR_INPUTS ||
+                        (parametr_name_e) uart_data_rcv.id_parametr == PARAMETR_ONPAYLOAD
+                        ) {
+
+                        for (int i = (int)len_data; i < len_data_must_be; ++i) {
+                            dwin_data.data[i] = ' ';
+                            dwin_data.len++;
+                        }
+
+                        xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
+
                     }
                     break;
                 case DATA_TYPE_CMD:
@@ -388,11 +447,14 @@ void StartRcvFromEspTask(void const * argument)
 void StartSendToEspTask(void const * argument)
 {
     /* USER CODE BEGIN 5 */
-
+    uart_data_t to_esp_data;
     /* Infinite loop */
     for(;;)
     {
-        vTaskDelay(pdMS_TO_TICKS(10));
+        xQueueReceive(queue_esp_sendHandle, &to_esp_data, portMAX_DELAY);
+        size_t len_packet = sizeof (uart_data_t);
+        HAL_UART_Transmit(&huart2, (uint8_t*)&to_esp_data, len_packet, 50);
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
     /* USER CODE END 5 */
 }
@@ -400,10 +462,46 @@ void StartSendToEspTask(void const * argument)
 void StartRcvFromDWINTask(void const * argument)
 {
     /* USER CODE BEGIN 5 */
+    dwin_data_t dwin_data;
+    uart_data_t uart_data;
+    uint8_t state_button_payload;
     /* Infinite loop */
     for(;;)
     {
-        vTaskDelay(pdMS_TO_TICKS(10));
+        xQueueReceive(queue_data_from_dwinHandle, &dwin_data, portMAX_DELAY);
+
+        if (dwin_data.header == HEADER_PACKET) {
+            memset(&uart_data, '\0', sizeof (uart_data_t));
+
+            switch (dwin_data.address) {
+                case ADDR_TOPIC_BASE: {
+                    int current_position = 1;
+                    while (dwin_data.data[current_position] != 255) {
+                        uart_data.value[current_position - 1] = dwin_data.data[current_position];
+                        current_position++;
+                    }
+                    uart_data.data_type = (uint32_t) DATA_TYPE_CMD;
+                    uart_data.id_parametr = (uint32_t) COMMAND_SUBSCRIBE_TOPIC;
+                }
+                    break;
+                case ADDR_PAYLOAD_BTN:
+                    uart_data.data_type = (uint32_t)DATA_TYPE_CMD;
+                    if (state_button_payload == 0){
+                        uart_data.id_parametr = (uint32_t)COMMAND_ON_LOAD;
+                        state_button_payload = 1;
+                    } else {
+                        uart_data.id_parametr = (uint32_t)COMMAND_OFF_LOAD;
+                        state_button_payload = 0;
+                    }
+
+                    break;
+                default:
+                    break;
+            }
+            uart_data.crc = crc8ccitt(&uart_data, DATA_SIZE);
+            xQueueSend(queue_esp_sendHandle, &uart_data, pdMS_TO_TICKS(10));
+        }
+
     }
     /* USER CODE END 5 */
 }
@@ -416,14 +514,14 @@ void StartSendToDWINTask(void const * argument)
     for(;;)
     {
         xQueueReceive(queue_dwin_sendHandle, &dwin_data, portMAX_DELAY);
-        size_t len_packet = dwin_data.len + sizeof (dwin_data.header);
+        size_t len_packet = dwin_data.len + sizeof (dwin_data.len) + sizeof (dwin_data.header);
         HAL_UART_Transmit(&huart1, (uint8_t*)&dwin_data, len_packet, 50);
         vTaskDelay(pdMS_TO_TICKS(1));
     }
     /* USER CODE END 5 */
 }
 
-void LebBlinkTask(void const * argument)
+void LedBlinkTask(void const * argument)
 {
     /* USER CODE BEGIN 5 */
 
@@ -440,12 +538,22 @@ void LebBlinkTask(void const * argument)
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 
-    if (huart == &huart2) {
+    if (huart == &huart2) { //uart esp
+
         uart_data_t data_rcv;
         memcpy(&data_rcv, (void*)rx_data_esp, sizeof (uart_data_t));
         portBASE_TYPE xHigherPriorityTaskWoken;
         xQueueSendFromISR(queue_data_from_espHandle, &data_rcv, &xHigherPriorityTaskWoken);
         HAL_UARTEx_ReceiveToIdle_IT(&huart2, (uint8_t*)rx_data_esp,sizeof (uart_data_t));
+
+    } else if (huart == &huart1) { //uart dwin
+
+        dwin_data_t data_rcv;
+        memcpy(&data_rcv, (void*)rx_data_dwin, sizeof (dwin_data_t));
+        portBASE_TYPE xHigherPriorityTaskWoken;
+        xQueueSendFromISR(queue_data_from_dwinHandle, &data_rcv, &xHigherPriorityTaskWoken);
+        HAL_UARTEx_ReceiveToIdle_IT(&huart1, (uint8_t*)rx_data_dwin,sizeof (dwin_data_t));
+
     }
 }
 
@@ -461,11 +569,106 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
-
+    dwin_data_t dwin_data;
+    uart_data_t uart_data_rcv;
     /* Infinite loop */
     for(;;)
     {
-        vTaskDelay(pdMS_TO_TICKS(10));
+        xQueueReceive(queue_data_from_espHandle, &uart_data_rcv, portMAX_DELAY);
+        xSemaphoreGive(sem_led_blinkHandle);
+        if (uart_data_rcv.crc == crc8ccitt(&uart_data_rcv, DATA_SIZE) && uart_data_rcv.crc != 0){
+
+            memset(&dwin_data, '\0',sizeof (dwin_data));
+            size_t len_data = strlen(uart_data_rcv.value);
+
+            dwin_data.header = HEADER_PACKET;
+            dwin_data.len = len_data + sizeof (dwin_data.address) + sizeof (dwin_data.direction);
+
+            dwin_data.direction = TO_DWIN;
+            memcpy(dwin_data.data, uart_data_rcv.value, len_data);
+
+            int len_data_must_be;
+
+            switch ((packet_type_e)uart_data_rcv.data_type) {
+                case DATA_TYPE_STATE:
+                    dwin_data.address = ADDR_MESSAGE;
+                    for (int i = (int)len_data; i < MESSAGE_LEN; ++i) {
+                        dwin_data.data[i] = ' ';
+                        dwin_data.len++;
+                    }
+                    xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
+                    break;
+                case DATA_TYPE_DATA:
+
+                    switch ((parametr_name_e)uart_data_rcv.id_parametr) {
+                        case PARAMETR_TEMP:
+                            len_data_must_be = 5;
+                            dwin_data.address = ADDR_TEMPERATURE;
+                            break;
+                        case PARAMETR_HUMIDITY:
+                            len_data_must_be = 5;
+                            dwin_data.address = ADDR_HUMIDITY;
+                            break;
+                        case PARAMETR_INSOL:
+                            len_data_must_be = 5;
+                            dwin_data.address = ADDR_INSOL;
+                            break;
+                        case PARAMETR_INPUTS:
+                            len_data_must_be = 2;
+                            dwin_data.address = ADDR_INPUT;
+                            if (dwin_data.data[0] == '1'){
+                                dwin_data.data[0] = 0x00;
+                                dwin_data.data[1] = 0x01;
+                                dwin_data.len++;
+                                len_data++;
+                            } else if (dwin_data.data[0] == '0'){
+                                dwin_data.data[0] = 0x00;
+                                dwin_data.data[1] = 0x00;
+                                dwin_data.len++;
+                                len_data++;
+                            }
+                            break;
+                        case PARAMETR_ONPAYLOAD:
+                            len_data_must_be = 2;
+                            dwin_data.address = ADDR_PAYLOAD;
+                            if (dwin_data.data[0] == '1'){
+                                dwin_data.data[0] = 0x00;
+                                dwin_data.data[1] = 0x01;
+                                dwin_data.len++;
+                                len_data++;
+                            } else if (dwin_data.data[0] == '0'){
+                                dwin_data.data[0] = 0x00;
+                                dwin_data.data[1] = 0x00;
+                                dwin_data.len++;
+                                len_data++;
+                            }
+                            break;
+                        case PARAMETR_NA:
+                        default:
+                            break;
+                    }
+                    if ((parametr_name_e) uart_data_rcv.id_parametr == PARAMETR_TEMP ||
+                        (parametr_name_e) uart_data_rcv.id_parametr == PARAMETR_HUMIDITY ||
+                        (parametr_name_e) uart_data_rcv.id_parametr == PARAMETR_INSOL ||
+                        (parametr_name_e) uart_data_rcv.id_parametr == PARAMETR_INPUTS ||
+                        (parametr_name_e) uart_data_rcv.id_parametr == PARAMETR_ONPAYLOAD
+                        ) {
+
+                        for (int i = (int)len_data; i < len_data_must_be; ++i) {
+                            dwin_data.data[i] = ' ';
+                            dwin_data.len++;
+                        }
+
+                        xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
+
+                    }
+                    break;
+                case DATA_TYPE_CMD:
+                    break;
+                default:
+                    break;
+            }
+        }
     }
   /* USER CODE END 5 */
 }

@@ -16,6 +16,8 @@
 #include "esp_timer.h"
 #include "freertos/timers.h"
 
+typedef void (*mqtt_publish_app)(char* topic, char* message);
+
 typedef struct {
     uint16_t humidity;
     uint16_t temperature;
@@ -23,7 +25,7 @@ typedef struct {
 } data_sensor_t;
 
 void dht11_vTask_read(void * pvParameters );
-void dht11_init(int pin_sensor, esp_mqtt_client_handle_t* mqtt_client);
+void dht11_init(int pin_sensor, mqtt_publish_app mqttPublishApp);
 void dht11_read(data_sensor_t *data);
 
 

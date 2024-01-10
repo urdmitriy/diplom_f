@@ -9,13 +9,12 @@
 #include "dht11.h"
 #include "di.h"
 #include "photosensor.h"
+#include "secret.h"
 
 #define PIN_SENSOR_TEMPER 9
 #define PIN_DI 7
-//ADC1_1
 
-esp_mqtt_client_handle_t mqtt_client_publish;
-esp_mqtt_client_handle_t mqtt_client_subscibe;
+//ADC1_1
 
 void app_main(void)
 {
@@ -29,12 +28,17 @@ void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     leds_init();
-    dht11_init(PIN_SENSOR_TEMPER, &mqtt_client_publish);
-    di_init(PIN_DI, &mqtt_client_publish);
-    light_sensor_init(ADC_CHANNEL_1, &mqtt_client_publish);
-    wifi_init_sta(&mqtt_client_publish, &mqtt_client_subscibe);
+    dht11_init(PIN_SENSOR_TEMPER, mqtt_esp_publish_message);
+    di_init(PIN_DI, mqtt_esp_publish_message);
+    light_sensor_init(ADC_CHANNEL_1, mqtt_esp_publish_message);
+
+    mqtt_esp_init((char*)secret_root_ca,
+                  (char*)secret_cert_devices,(char*)secret_key_devices,
+                  (char*)secret_cert_registries, (char*)secret_key_registries,
+                  uart_esp_uart_data_handler);
+
+    wifi_init_sta((char*)secret_name_wf, (char*)secret_pass_wf,mqtt_esp_mqtt_app_start);
     ESP_ERROR_CHECK(esp_netif_init());
-    mqtt_app_start(&mqtt_client_publish, &mqtt_client_subscibe);
 
     while (1){ ; }
 }

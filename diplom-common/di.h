@@ -6,8 +6,8 @@
 
 #ifndef DIPLOM_ESP32_DI_H
 #define DIPLOM_ESP32_DI_H
-
-void di_init(int pin, esp_mqtt_client_handle_t* mqtt_client);
+typedef void (*mqtt_publish_app)(char* topic, char* message);
+void di_init(int pin, mqtt_publish_app mqttPublishApp);
 void di_vTask(void* arg);
 void di_vTask_periodic(void *arg);
 #endif //DIPLOM_ESP32_DI_H

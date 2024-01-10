@@ -7,17 +7,10 @@
 #include "esp_mac.h"
 #include "esp_wifi.h"
 #include "uart_esp.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
+#include "secret.h"
 
 void app_main(void)
 {
-    static esp_mqtt_client_handle_t mqtt_client_publish;
-    static esp_mqtt_client_handle_t mqtt_client_subscribe;
-    static QueueHandle_t queue_message_to_send = NULL;
-    queue_message_to_send = xQueueCreate(50, sizeof(uart_data_t));
-
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     esp_err_t ret = nvs_flash_init();
@@ -27,9 +20,14 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    uart_init(uart_data_handler, &queue_message_to_send);
+    uart_init(mqtt_esp_publish_message, mqtt_esp_mqtt_subscribe,mqtt_esp_mqtt_unsubscribe);
     leds_init();
-    wifi_init_sta(&queue_message_to_send, &mqtt_client_publish, &mqtt_client_subscribe);
+    mqtt_esp_init((char*)secret_root_ca,
+                  (char*)secret_cert_devices,(char*)secret_key_devices,
+                  (char*)secret_cert_registries, (char*)secret_key_registries,
+                  uart_esp_uart_data_handler);
+
+    wifi_init_sta((char*)secret_name_wf, (char*)secret_pass_wf, mqtt_esp_mqtt_app_start);
     ESP_ERROR_CHECK(esp_netif_init());
 
 

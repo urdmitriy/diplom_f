@@ -7,11 +7,12 @@
 #define MAX_TIME_SENSOR_WAIT_US 10000
 
 static int _pin_sensor;
-static esp_mqtt_client_handle_t* _mqtt_client;
+static mqtt_publish_app _mqttPublishApp;
 
-void dht11_init(int pin_sensor, esp_mqtt_client_handle_t* mqtt_client) {
+void dht11_init(int pin_sensor, mqtt_publish_app mqttPublishApp) {
     _pin_sensor = pin_sensor;
-    _mqtt_client = mqtt_client;
+    _mqttPublishApp = mqttPublishApp;
+
     gpio_reset_pin(_pin_sensor);
     timer_config_t config_timer = {
             .counter_dir = TIMER_COUNT_UP,
@@ -46,9 +47,9 @@ void dht11_vTask_read(void * pvParameters )
 
             sprintf(message, "ERROR");
             sprintf(topic, BASE_TOPIC_NAME, "temp");
-            esp_mqtt_client_publish(*_mqtt_client, topic,  message, 0, 1, 0);
+            _mqttPublishApp(topic, message);
             sprintf(topic, BASE_TOPIC_NAME, "humidity");
-            esp_mqtt_client_publish(*_mqtt_client, topic,  message, 0, 1, 0);
+            _mqttPublishApp(topic, message);
 
         } else {
 
@@ -56,7 +57,7 @@ void dht11_vTask_read(void * pvParameters )
 
                 sprintf(message, "%d.%d", data_sensor.temperature>>8, (uint8_t)(data_sensor.temperature & 0x00FF));
                 sprintf(topic, BASE_TOPIC_NAME, "temp");
-                esp_mqtt_client_publish(*_mqtt_client,  topic,  message, 0, 1, 0);
+                _mqttPublishApp(topic, message);
                 data_sensor_old.temperature = data_sensor.temperature;
                 time_last_send_data_temperature = esp_timer_get_time();
 
@@ -66,14 +67,14 @@ void dht11_vTask_read(void * pvParameters )
 
                 sprintf(message, "%d.%d", data_sensor.humidity>>8, (uint8_t)(data_sensor.humidity & 0x00FF));
                 sprintf(topic, BASE_TOPIC_NAME, "humidity");
-                esp_mqtt_client_publish(*_mqtt_client, topic,  message, 0, 1, 0);
+                _mqttPublishApp(topic, message);
                 data_sensor_old.humidity = data_sensor.humidity;
                 time_last_send_data_humidity = esp_timer_get_time();
 
             }
         }
 
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }
 

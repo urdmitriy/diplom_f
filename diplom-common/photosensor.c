@@ -8,11 +8,12 @@
 
 
 static adc_channel_t _adc_channel;
-static esp_mqtt_client_handle_t* _mqtt_client;
 static adc_oneshot_unit_handle_t adc1_handle;
-void light_sensor_init(adc_channel_t channel, esp_mqtt_client_handle_t* mqtt_client){
+static mqtt_publish_app _mqttPublishApp;
+
+void light_sensor_init(adc_channel_t channel, mqtt_publish_app mqttPublishApp){
     _adc_channel = channel;
-    _mqtt_client = mqtt_client;
+    _mqttPublishApp = mqttPublishApp;
     //-------------ADC1 Init---------------//
     adc_oneshot_unit_init_cfg_t init_config1 = {
             .unit_id = ADC_UNIT_1,
@@ -35,14 +36,14 @@ void light_sensor_vTask(void *arg) {
     for (;;) {
 
         adc_oneshot_read(adc1_handle, _adc_channel, &adc_value);
-        adc_value = adc_value / 10 * 10;
+        adc_value = adc_value / 100 * 100;
 
         if ((adc_value != adc_value_old) || ((esp_timer_get_time() - time_last_send_data_light) > MAX_DELAY_SEND_DATA)) {
             ESP_LOGI("ADC", "New val = %d, old val = %d", adc_value, adc_value_old);
             char message[10], topic[100];
             sprintf(message, "%d", adc_value);
             sprintf(topic, BASE_TOPIC_NAME, "insol");
-            esp_mqtt_client_publish(*_mqtt_client, topic, message, 0, 1, 0);
+            _mqttPublishApp(topic, message);
             ESP_LOGI("ADC", "ADC_READ = %d", adc_value);
             adc_value_old = adc_value;
             time_last_send_data_light = esp_timer_get_time();

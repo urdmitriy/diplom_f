@@ -3,11 +3,28 @@
 //
 
 #include "mqtt_esp.h"
-#include "esp_mac.h"
+#define YANDEX
+//#define ERINACETO
 
-static QueueHandle_t* _queue_message_to_send;
-static esp_mqtt_client_handle_t* _client_to_publish;
-static esp_mqtt_client_handle_t* _client_to_subscribe;
+//static QueueHandle_t* _queue_message_to_send;
+static esp_mqtt_client_handle_t mqtt_client_publish;
+static esp_mqtt_client_handle_t mqtt_client_subscibe;
+static uart_data_handler _uartDataHandler;
+static char* _root_ca;
+static char* _cert_devices;
+static char* _key_devices;
+static char* _cert_registr;
+static char* _key_registr;
+static char _current_topic[10] = {'\0',};
+
+void mqtt_esp_init(char* root_ca, char* cert_devices, char* key_devices, char* cert_registr, char* key_registr, uart_data_handler uartDataHandler){
+    _root_ca = root_ca;
+    _cert_devices = cert_devices;
+    _key_devices = key_devices;
+    _cert_registr = cert_registr;
+    _key_registr = key_registr;
+    _uartDataHandler = uartDataHandler;
+}
 
 static void log_error_if_nonzero(const char *message, int error_code)
 {
@@ -16,7 +33,7 @@ static void log_error_if_nonzero(const char *message, int error_code)
     }
 }
 
-static parametr_name_e get_param_name(char *topic_name) {
+parametr_name_e mqtt_esp_get_param_name(char *topic_name) {
     char my_topic[100];
     strcpy(my_topic, "gb_iot/2950_UDA/insol");
     if (strcmp(topic_name, my_topic) == 0) {
@@ -37,44 +54,64 @@ static parametr_name_e get_param_name(char *topic_name) {
     if (strcmp(topic_name, my_topic) == 0) {
         return PARAMETR_HUMIDITY;
     }
-
+    strcpy(my_topic, "gb_iot/2950_UDA/onpayload");
+    if (strcmp(topic_name, my_topic) == 0) {
+        return PARAMETR_ONPAYLOAD;
+    }
     ESP_LOGI("DATA_TYPE", "Incom data topic: NA: %s", topic_name);
     return PARAMETR_NA;
 }
 
-static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
+static void mqtt_esp_mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     ESP_LOGD("TAG_MQTT", "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
     esp_mqtt_event_handle_t event = event_data;
 
     switch ((esp_mqtt_event_id_t)event_id) {
-        case MQTT_EVENT_CONNECTED:
-            ESP_LOGI("TAG_MQTT", "MQTT_EVENT_CONNECTED");
-            esp_mqtt_client_handle_t* _client = (esp_mqtt_client_handle_t*)handler_args;
-#if defined ESP_PUBLISHER
-            xTaskCreate(dht11_vTask_read, "DHT11", 4096, NULL, 1, NULL);
-            xTaskCreate(di_vTask, "di_vTask", 2048, NULL, 10, NULL);
-            xTaskCreate(di_vTask_periodic, "di_vTask", 2048, NULL, 10, NULL);
-            xTaskCreate(light_sensor_vTask, "light_sensor_vTask", 2048, NULL, 10, NULL);
-            esp_mqtt_client_subscribe(*_client_to_publish, "gb_iot/2950_UDA/onpayload", 0);
-#elif defined ESP_MQTT_ADAPTER
-            send_status_mqtt_adapter(STATUS_MQTT_SERVER_IS_CONNECT);
-            if (_client == _client_to_subscribe){
-                mqtt_subscribe("2950_UDA");
-                esp_mqtt_client_start(*_client_to_publish);
-            }
+        case MQTT_EVENT_CONNECTED: {
 
+            esp_mqtt_client_handle_t *_client = (esp_mqtt_client_handle_t *) handler_args;
+#if defined ESP_PUBLISHER
+            if (_client == &mqtt_client_publish) {
+                ESP_LOGI("TAG_MQTT", "MQTT_PUBLISHER_CONNECTED");
+                xTaskCreate(dht11_vTask_read, "DHT11", 4096, NULL, 1, NULL);
+                xTaskCreate(di_vTask, "di_vTask", 2048, NULL, 10, NULL);
+                xTaskCreate(di_vTask_periodic, "di_vTask", 2048, NULL, 10, NULL);
+                xTaskCreate(light_sensor_vTask, "light_sensor_vTask", 2048, NULL, 10, NULL);
+                esp_mqtt_client_start(mqtt_client_subscibe);
+            } else if (_client == &mqtt_client_subscibe) {
+                ESP_LOGI("TAG_MQTT", "MQTT_SUBSCRIBE_CONNECTED");
+                esp_mqtt_client_subscribe(mqtt_client_subscibe, "gb_iot/2950_UDA/onpayload", 0);
+            }
+#elif defined ESP_MQTT_ADAPTER
+            if (_client == &mqtt_client_publish) {
+                ESP_LOGI("TAG_MQTT", "MQTT_PUBLISHER_CONNECTED");
+                esp_mqtt_client_start(mqtt_client_subscibe);
+            } else if (_client == &mqtt_client_subscibe) {
+                ESP_LOGI("TAG_MQTT", "MQTT_SUBSCRIBE_CONNECTED");
+                //mqtt_esp_mqtt_subscribe("2950_UDA");
+            }
 #endif
+        }
             break;
 
         case MQTT_EVENT_DISCONNECTED:
+#ifdef ESP_MQTT_ADAPTER
+            send_status_mqtt_adapter("MQTT servet is disconnect");
+#endif
             ESP_LOGI("TAG_MQTT", "MQTT_EVENT_DISCONNECTED");
             break;
 
         case MQTT_EVENT_SUBSCRIBED:
+#ifdef ESP_MQTT_ADAPTER
+            send_status_mqtt_adapter("MQTT subscribed");
+#endif
             ESP_LOGI("TAG_MQTT", "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
             break;
         case MQTT_EVENT_UNSUBSCRIBED:
+#ifdef ESP_MQTT_ADAPTER
+            send_status_mqtt_adapter("MQTT unsubscribed");
+#endif
             ESP_LOGI("TAG_MQTT", "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
             break;
 
@@ -107,7 +144,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                 }
             }
 #elif defined ESP_MQTT_ADAPTER
-            send_status_mqtt_adapter(STATUS_MQTT_RCV_DATA);
+
             char topic[100];
             char data_topic[10];
 
@@ -117,13 +154,13 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             uart_data_t data;
 
             data.data_type = DATA_TYPE_DATA;
-            data.id_parametr = (int)get_param_name(topic);
+            data.id_parametr = (int)mqtt_esp_get_param_name(topic);
             memset((uint8_t*)data.value, '\0', sizeof (data.value));
             sprintf(data.value,"%.*s", event->data_len, event->data);
             data.crc = crc8ccitt((uint8_t*)&data, DATA_SIZE);
 
-            ESP_LOGI("RES", "Data type = %d, parametr = %d, value = %s, crc = %d", data.data_type, data.id_parametr, data.value, data.crc);
-            xQueueSend(*_queue_message_to_send, &data, pdMS_TO_TICKS(10));
+            ESP_LOGI("RES", "Data type = %lu, parametr = %d, value = %s, crc = %d", data.data_type, data.id_parametr, data.value, data.crc);
+            _uartDataHandler((char*)&data);
 
 #endif
 
@@ -134,6 +171,9 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         case MQTT_EVENT_ERROR:
             ESP_LOGI("TAG_MQTT", "MQTT_EVENT_ERROR");
             if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+#ifdef ESP_MQTT_ADAPTER
+                send_status_mqtt_adapter("MQTT transport error");
+#endif
                 log_error_if_nonzero("reported from esp-tls", event->error_handle->esp_tls_last_esp_err);
                 log_error_if_nonzero("reported from tls stack", event->error_handle->esp_tls_stack_err);
                 log_error_if_nonzero("captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
@@ -147,44 +187,41 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
-void mqtt_subscribe(char* group){
+void mqtt_esp_mqtt_subscribe(char* group){
+    mqtt_esp_mqtt_unsubscribe(_current_topic);
     char _topic[128];
     sprintf(_topic, "gb_iot/%s/insol", group);
-    esp_mqtt_client_subscribe(*_client_to_subscribe, _topic, 0);
+    esp_mqtt_client_subscribe(mqtt_client_subscibe, _topic, 0);
     sprintf(_topic, "gb_iot/%s/inputs", group);
-    esp_mqtt_client_subscribe(*_client_to_subscribe, _topic, 0);
+    esp_mqtt_client_subscribe(mqtt_client_subscibe, _topic, 0);
     sprintf(_topic, "gb_iot/%s/temp", group);
-    esp_mqtt_client_subscribe(*_client_to_subscribe, _topic, 0);
+    esp_mqtt_client_subscribe(mqtt_client_subscibe, _topic, 0);
     sprintf(_topic, "gb_iot/%s/humidity", group);
-    esp_mqtt_client_subscribe(*_client_to_subscribe, _topic, 0);
+    esp_mqtt_client_subscribe(mqtt_client_subscibe, _topic, 0);
+    sprintf(_topic, "gb_iot/%s/onpayload", group);
+    esp_mqtt_client_subscribe(mqtt_client_subscibe, _topic, 0);
+
+    sprintf(_current_topic, "%s", group);
 }
 
-void mqtt_unsubscribe(char* group){
+void mqtt_esp_mqtt_unsubscribe(char* group){
     char _topic[128];
     sprintf(_topic, "gb_iot/%s/insol", group);
-    esp_mqtt_client_unsubscribe(*_client_to_subscribe, _topic);
+    esp_mqtt_client_unsubscribe(mqtt_client_subscibe, _topic);
     sprintf(_topic, "gb_iot/%s/inputs", group);
-    esp_mqtt_client_unsubscribe(*_client_to_subscribe, _topic);
+    esp_mqtt_client_unsubscribe(mqtt_client_subscibe, _topic);
     sprintf(_topic, "gb_iot/%s/temp", group);
-    esp_mqtt_client_unsubscribe(*_client_to_subscribe, _topic);
+    esp_mqtt_client_unsubscribe(mqtt_client_subscibe, _topic);
     sprintf(_topic, "gb_iot/%s/humidity", group);
-    esp_mqtt_client_unsubscribe(*_client_to_subscribe, _topic);
+    esp_mqtt_client_unsubscribe(mqtt_client_subscibe, _topic);
+    sprintf(_topic, "gb_iot/%s/onpayload", group);
+    esp_mqtt_client_unsubscribe(mqtt_client_subscibe, _topic);
+
+    sprintf(_current_topic, "%s", "none");
 }
 
-#if defined ESP_PUBLISHER
-void mqtt_app_start(esp_mqtt_client_handle_t* mqtt_client_publish, esp_mqtt_client_handle_t* mqtt_client_subscibe)
-#elif defined ESP_MQTT_ADAPTER
-void mqtt_app_start(esp_mqtt_client_handle_t* mqtt_client_publish, esp_mqtt_client_handle_t* mqtt_client_subscibe, QueueHandle_t* queue_message_to_send)
-#endif
-{
-#if defined ESP_PUBLISHER
-#elif defined ESP_MQTT_ADAPTER
-    _queue_message_to_send = queue_message_to_send;
-#endif
-    _client_to_subscribe = mqtt_client_subscibe;
-    _client_to_publish = mqtt_client_publish;
-    char mac_addr[10];
-    esp_base_mac_addr_get((uint8_t*)mac_addr);
+void mqtt_esp_mqtt_app_start(void ){
+#ifdef ERINACETO
     esp_mqtt_client_config_t mqtt_cfg_publish = {
             .broker.address.uri = "mqtt://erinaceto.ru",
             .broker.address.port = 1883,
@@ -199,64 +236,45 @@ void mqtt_app_start(esp_mqtt_client_handle_t* mqtt_client_publish, esp_mqtt_clie
             .credentials.client_id = "ESP_subscribe",
             .credentials.authentication.password = "qwope354F",
             .credentials.username = "user",
-            //.credentials.authentication.certificate = "",
-            //.credentials.authentication.key = "",
-            //.broker.verification.use_global_ca_store = true,
-    }; //https://github.com/espressif/esp-mqtt/issues/125?ysclid=lqqc6jdja0255111744
+    };
+#elif defined YANDEX
+    ESP_ERROR_CHECK(esp_tls_init_global_ca_store());
+    ESP_ERROR_CHECK(esp_tls_set_global_ca_store(
+            (const unsigned char *) _root_ca,
+            strlen(_root_ca) + 1));    //https://github.com/espressif/esp-mqtt/issues/125?ysclid=lqqc6jdja0255111744
 
-    *_client_to_subscribe = esp_mqtt_client_init(&mqtt_cfg_subscribe);
-    *_client_to_publish = esp_mqtt_client_init(&mqtt_cfg_publish);
+    esp_mqtt_client_config_t mqtt_cfg_publish = {
+            .broker.address.uri = "mqtts://mqtt.cloud.yandex.net",
+            .broker.address.port = 8883,
+            .credentials.client_id = "ESP_publish",
+            .credentials.authentication.certificate = _cert_devices,
+            .credentials.authentication.certificate_len = strlen(_cert_devices) + 1,
+            .credentials.authentication.key = _key_devices,
+            .credentials.authentication.key_len = strlen(_key_devices) + 1,
+            .broker.verification.use_global_ca_store = true,
+    };
 
-    esp_mqtt_client_register_event(*_client_to_subscribe, ESP_EVENT_ANY_ID, mqtt_event_handler, _client_to_subscribe);
-    esp_mqtt_client_register_event(*_client_to_publish, ESP_EVENT_ANY_ID, mqtt_event_handler, _client_to_publish);
+    esp_mqtt_client_config_t mqtt_cfg_subscribe = {
+            .broker.address.uri = "mqtts://mqtt.cloud.yandex.net",
+            .broker.address.port = 8883,
+            .credentials.client_id = "ESP_subscribe",
+            .credentials.authentication.certificate = _cert_registr,
+            .credentials.authentication.certificate_len = strlen(_cert_registr) + 1,
+            .credentials.authentication.key = _key_registr,
+            .credentials.authentication.key_len = strlen(_key_registr) + 1,
+            .broker.verification.use_global_ca_store = true,
+    };
 
-    esp_mqtt_client_start(*_client_to_subscribe);
-    esp_mqtt_client_start(*_client_to_publish);
+#endif
+    mqtt_client_subscibe = esp_mqtt_client_init(&mqtt_cfg_subscribe);
+    mqtt_client_publish = esp_mqtt_client_init(&mqtt_cfg_publish);
+
+    esp_mqtt_client_register_event(mqtt_client_subscibe, ESP_EVENT_ANY_ID, mqtt_esp_mqtt_event_handler, &mqtt_client_subscibe);
+    esp_mqtt_client_register_event(mqtt_client_publish, ESP_EVENT_ANY_ID, mqtt_esp_mqtt_event_handler, &mqtt_client_publish);
+
+    esp_mqtt_client_start(mqtt_client_publish); //    subscribe коннектится после коннекта издателя
 }
 
-void uart_data_handler(char *rx_buffer){
-    uart_data_t data_rcv = *(uart_data_t*)rx_buffer;
-
-    if (data_rcv.crc != crc8ccitt(&data_rcv, DATA_SIZE)) return;
-
-    switch (data_rcv.data_type) {
-        case DATA_TYPE_CMD:
-            switch ((commands_e)data_rcv.id_parametr) {
-
-                case COMMAND_SUBSCRIBE_TOPIC:{
-                    char topic_master[128];
-                    strcpy(topic_master, data_rcv.value);
-                    mqtt_subscribe(topic_master);
-                }
-                    break;
-                case COMMAND_UNSUBSCRIBE_TOPIC: {
-                    char topic_master[128];
-                    strcpy(topic_master, data_rcv.value);
-                    mqtt_unsubscribe(topic_master);
-                }
-                    break;
-                case COMMAND_OFF_LOAD:{
-                    char topic[128], message[10];
-                    sprintf(topic, BASE_TOPIC_NAME, "onpayload");
-                    sprintf(message, "0");
-                    esp_mqtt_client_publish(*_client_to_publish, topic,  message, 0, 1, 0);
-                }
-                    break;
-                case COMMAND_ON_LOAD:{
-                    char topic[128], message[10];
-                    sprintf(topic, BASE_TOPIC_NAME, "onpayload");
-                    sprintf(message, "1");
-                    esp_mqtt_client_publish(*_client_to_publish, topic,  message, 0, 1, 0);
-                }
-                    break;
-                default:
-                    break;
-            }
-            break;
-
-        case DATA_TYPE_DATA:
-        case DATA_TYPE_STATE:
-        default:
-            break;
-    }
+void mqtt_esp_publish_message(char* topic, char* message){
+    esp_mqtt_client_publish(mqtt_client_publish, topic, message, 0, 1, 0);
 }

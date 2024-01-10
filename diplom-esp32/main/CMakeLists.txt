@@ -6,6 +6,8 @@ idf_component_register(
         "../../diplom-common/dht11.c"
         "../../diplom-common/di.c"
         "../../diplom-common/photosensor.c"
+        "../../diplom-common/uart_esp.c"
+        "../../diplom-common/crc8.c"
         INCLUDE_DIRS
         "."
         "../../diplom-common/"

@@ -13,7 +13,9 @@
 #include "freertos/task.h"
 #include "esp_timer.h"
 
-void light_sensor_init(adc_channel_t channel, esp_mqtt_client_handle_t* mqtt_client);
+typedef void (*mqtt_publish_app)(char* topic, char* message);
+
+void light_sensor_init(adc_channel_t channel, mqtt_publish_app mqttPublishApp);
 void light_sensor_vTask(void *arg);
 
 #endif //DIPLOM_ESP32_PHOTOSENSOR_H
