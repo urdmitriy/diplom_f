@@ -11,6 +11,7 @@ mqtt_publish_app _mqttPublishApp;
 mqtt_subscribe_app _mqttSubscribeApp;
 mqtt_unsubscribe_app _mqttUnsubscribeApp;
 
+
 #define TXD_PIN 17
 #define RXD_PIN 18
 
@@ -76,7 +77,7 @@ void send_status_mqtt_adapter(char * message){
     memset((uint8_t*)data_to_send.value, '\0', sizeof (data_to_send.value));
     memcpy(&data_to_send.value, message, strlen(message));
     data_to_send.crc = crc8ccitt((uint8_t*)&data_to_send, DATA_SIZE);
-    xQueueSend(_queue_message_to_send, &data_to_send, pdMS_TO_TICKS(10));
+    xQueueSend(_queue_message_to_send, &data_to_send, pdMS_TO_TICKS(1));
 }
 
 void uart_esp_uart_data_handler(char *rx_buffer){
@@ -119,7 +120,7 @@ void uart_esp_uart_data_handler(char *rx_buffer){
             break;
 
         case DATA_TYPE_DATA:{
-            xQueueSend(_queue_message_to_send, &data_rcv, pdMS_TO_TICKS(10));
+            xQueueSend(_queue_message_to_send, &data_rcv, pdMS_TO_TICKS(1));
         }
             break;
         case DATA_TYPE_STATE:

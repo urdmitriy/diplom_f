@@ -8,11 +8,12 @@
 
 static int _pin_sensor;
 static mqtt_publish_app _mqttPublishApp;
+static SemaphoreHandle_t *_semaphore_wake_up;
 
-void dht11_init(int pin_sensor, mqtt_publish_app mqttPublishApp) {
+void dht11_init(int pin_sensor, mqtt_publish_app mqttPublishApp, SemaphoreHandle_t * semaphore_wake_up) {
     _pin_sensor = pin_sensor;
     _mqttPublishApp = mqttPublishApp;
-
+    _semaphore_wake_up = semaphore_wake_up;
     gpio_reset_pin(_pin_sensor);
     timer_config_t config_timer = {
             .counter_dir = TIMER_COUNT_UP,
@@ -28,53 +29,68 @@ void dht11_vTask_read(void * pvParameters )
     data_sensor_t data_sensor = {.humidity = 0, .temperature = 0, .crc = 0};
     data_sensor_t data_sensor_old = {.humidity = 255, .temperature = 255, .crc = 0};
     static uint64_t time_last_send_data_temperature, time_last_send_data_humidity;
+    char message[500], topic[300];
 
     for( ;; )
     {
-        dht11_read(&data_sensor);
-        uint8_t crc_calc =
-                (uint8_t)(data_sensor.temperature>>8)+
-                (uint8_t)(data_sensor.temperature & 0x00FF) +
-                (uint8_t)(data_sensor.humidity>>8);
-        ESP_LOGI("DHT11", "Temperature: %d.%d, humidity: %d.%d, crc: %d, crc calc: %d.",
-                 data_sensor.temperature>>8, data_sensor.temperature & 0x00FF, data_sensor.humidity>>8,
-                 data_sensor.humidity & 0x00FF, data_sensor.crc, crc_calc);
+        if (xSemaphoreTake(*_semaphore_wake_up, pdMS_TO_TICKS(5000)) == pdFALSE){
+            //если сработка по таймауту, делаем опрос и отправку
+            dht11_read(&data_sensor);
+            uint8_t crc_calc =
+                    (uint8_t)(data_sensor.temperature>>8)+
+                    (uint8_t)(data_sensor.temperature & 0x00FF) +
+                    (uint8_t)(data_sensor.humidity>>8);
+            ESP_LOGI("DHT11", "Temperature: %d.%d, humidity: %d.%d, crc: %d, crc calc: %d.",
+                     data_sensor.temperature>>8, data_sensor.temperature & 0x00FF, data_sensor.humidity>>8,
+                     data_sensor.humidity & 0x00FF, data_sensor.crc, crc_calc);
 
-        char message[500], topic[300];
 
+            if ( //если неверные значения
+                    (data_sensor.temperature == 0 && data_sensor.humidity == 0 && data_sensor.crc == 0) ||
+                    data_sensor.temperature>>8 > 50 || data_sensor.humidity>>8 > 100) {
 
-        if (data_sensor.temperature == 0 && data_sensor.humidity == 0 && data_sensor.crc == 0){
+                ESP_LOGE("DHT11", "Temperature: %d.%d, humidity: %d.%d, crc: %d, crc calc: %d.",
+                         data_sensor.temperature>>8, data_sensor.temperature & 0x00FF, data_sensor.humidity>>8,
+                         data_sensor.humidity & 0x00FF, data_sensor.crc, crc_calc);
 
-            sprintf(message, "ERROR");
-            sprintf(topic, BASE_TOPIC_NAME, "temp");
-            _mqttPublishApp(topic, message);
-            sprintf(topic, BASE_TOPIC_NAME, "humidity");
-            _mqttPublishApp(topic, message);
-
-        } else {
-
-            if ((data_sensor.temperature != data_sensor_old.temperature) || ((esp_timer_get_time() - time_last_send_data_temperature) > MAX_DELAY_SEND_DATA)) {
-
-                sprintf(message, "%d.%d", data_sensor.temperature>>8, (uint8_t)(data_sensor.temperature & 0x00FF));
+                sprintf(message, "ERROR");
                 sprintf(topic, BASE_TOPIC_NAME, "temp");
                 _mqttPublishApp(topic, message);
-                data_sensor_old.temperature = data_sensor.temperature;
-                time_last_send_data_temperature = esp_timer_get_time();
-
-            }
-
-            if ((data_sensor.humidity != data_sensor_old.humidity) || ((esp_timer_get_time() - time_last_send_data_humidity) > MAX_DELAY_SEND_DATA)) {
-
-                sprintf(message, "%d.%d", data_sensor.humidity>>8, (uint8_t)(data_sensor.humidity & 0x00FF));
                 sprintf(topic, BASE_TOPIC_NAME, "humidity");
                 _mqttPublishApp(topic, message);
-                data_sensor_old.humidity = data_sensor.humidity;
-                time_last_send_data_humidity = esp_timer_get_time();
 
+            } else {
+
+                if ((data_sensor.temperature != data_sensor_old.temperature) || ((esp_timer_get_time() - time_last_send_data_temperature) > MAX_DELAY_SEND_DATA)) {
+
+                    sprintf(message, "%d.%d", data_sensor.temperature>>8, (uint8_t)(data_sensor.temperature & 0x00FF));
+                    sprintf(topic, BASE_TOPIC_NAME, "temp");
+                    _mqttPublishApp(topic, message);
+                    data_sensor_old.temperature = data_sensor.temperature;
+                    time_last_send_data_temperature = esp_timer_get_time();
+
+                }
+
+                if ((data_sensor.humidity != data_sensor_old.humidity) || ((esp_timer_get_time() - time_last_send_data_humidity) > MAX_DELAY_SEND_DATA)) {
+
+                    sprintf(message, "%d.%d", data_sensor.humidity>>8, (uint8_t)(data_sensor.humidity & 0x00FF));
+                    sprintf(topic, BASE_TOPIC_NAME, "humidity");
+                    _mqttPublishApp(topic, message);
+                    data_sensor_old.humidity = data_sensor.humidity;
+                    time_last_send_data_humidity = esp_timer_get_time();
+
+                }
             }
-        }
+        } else {
+            //если сработка по семафору, отправляем последние данные
+            sprintf(message, "%d.%d", data_sensor.temperature>>8, (uint8_t)(data_sensor.temperature & 0x00FF));
+            sprintf(topic, BASE_TOPIC_NAME, "temp");
+            _mqttPublishApp(topic, message);
 
-        vTaskDelay(pdMS_TO_TICKS(5000));
+            sprintf(message, "%d.%d", data_sensor.humidity>>8, (uint8_t)(data_sensor.humidity & 0x00FF));
+            sprintf(topic, BASE_TOPIC_NAME, "humidity");
+            _mqttPublishApp(topic, message);
+        }
     }
 }
 

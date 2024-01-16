@@ -15,7 +15,7 @@
 
 typedef void (*mqtt_publish_app)(char* topic, char* message);
 
-void light_sensor_init(adc_channel_t channel, mqtt_publish_app mqttPublishApp);
+void light_sensor_init(adc_channel_t channel, mqtt_publish_app mqttPublishApp, SemaphoreHandle_t * semaphore_wake_up);
 void light_sensor_vTask(void *arg);
 
 #endif //DIPLOM_ESP32_PHOTOSENSOR_H

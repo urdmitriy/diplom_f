@@ -11,6 +11,7 @@
 
 void app_main(void)
 {
+    vTaskDelay(pdMS_TO_TICKS(3000));
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     esp_err_t ret = nvs_flash_init();

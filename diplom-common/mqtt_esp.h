@@ -22,7 +22,16 @@
 #include "uart_esp.h"
 #endif
 typedef void (*uart_data_handler)(char *rx_buffer);
+typedef void (*wake_up_action)(void);
+
+#if defined ESP_PUBLISHER
+void mqtt_esp_init(char* root_ca, char* cert_devices, char* key_devices, char* cert_registr, char* key_registr,
+                   uart_data_handler uartDataHandler, wake_up_action wakeUpAction, int *payload_state);
+#elif defined ESP_MQTT_ADAPTER
 void mqtt_esp_init(char* root_ca, char* cert_devices, char* key_devices, char* cert_registr, char* key_registr, uart_data_handler uartDataHandler);
+#endif
+
+
 void mqtt_esp_mqtt_app_start();
 parametr_name_e mqtt_esp_get_param_name(char *topic_name);
 void mqtt_esp_mqtt_subscribe(char* group);

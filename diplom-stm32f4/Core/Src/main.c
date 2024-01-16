@@ -430,7 +430,7 @@ void StartRcvFromEspTask(void const * argument)
                             dwin_data.len++;
                         }
 
-                        xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(50));
+                        xQueueSend(queue_dwin_sendHandle, &dwin_data, pdMS_TO_TICKS(1));
 
                     }
                     break;
@@ -540,18 +540,12 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 
     if (huart == &huart2) { //uart esp
 
-        uart_data_t data_rcv;
-        memcpy(&data_rcv, (void*)rx_data_esp, sizeof (uart_data_t));
-        portBASE_TYPE xHigherPriorityTaskWoken;
-        xQueueSendFromISR(queue_data_from_espHandle, &data_rcv, &xHigherPriorityTaskWoken);
+        xQueueSendFromISR(queue_data_from_espHandle, (uint8_t*)rx_data_esp, NULL);
         HAL_UARTEx_ReceiveToIdle_IT(&huart2, (uint8_t*)rx_data_esp,sizeof (uart_data_t));
 
     } else if (huart == &huart1) { //uart dwin
 
-        dwin_data_t data_rcv;
-        memcpy(&data_rcv, (void*)rx_data_dwin, sizeof (dwin_data_t));
-        portBASE_TYPE xHigherPriorityTaskWoken;
-        xQueueSendFromISR(queue_data_from_dwinHandle, &data_rcv, &xHigherPriorityTaskWoken);
+        xQueueSendFromISR(queue_data_from_dwinHandle, (uint8_t*)rx_data_dwin, NULL);
         HAL_UARTEx_ReceiveToIdle_IT(&huart1, (uint8_t*)rx_data_dwin,sizeof (dwin_data_t));
 
     }

@@ -6,7 +6,6 @@
 #define YANDEX
 //#define ERINACETO
 
-//static QueueHandle_t* _queue_message_to_send;
 static esp_mqtt_client_handle_t mqtt_client_publish;
 static esp_mqtt_client_handle_t mqtt_client_subscibe;
 static uart_data_handler _uartDataHandler;
@@ -16,14 +15,26 @@ static char* _key_devices;
 static char* _cert_registr;
 static char* _key_registr;
 static char _current_topic[10] = {'\0',};
+static wake_up_action _wakeUpAction;
+static int *_payload_state;
 
+#if defined ESP_PUBLISHER
+void mqtt_esp_init(char* root_ca, char* cert_devices, char* key_devices, char* cert_registr, char* key_registr,
+                   uart_data_handler uartDataHandler, wake_up_action wakeUpAction, int *payload_state){
+#elif defined ESP_MQTT_ADAPTER
 void mqtt_esp_init(char* root_ca, char* cert_devices, char* key_devices, char* cert_registr, char* key_registr, uart_data_handler uartDataHandler){
+#endif
+
     _root_ca = root_ca;
     _cert_devices = cert_devices;
     _key_devices = key_devices;
     _cert_registr = cert_registr;
     _key_registr = key_registr;
     _uartDataHandler = uartDataHandler;
+#if defined ESP_PUBLISHER
+    _wakeUpAction = wakeUpAction;
+    _payload_state = payload_state;
+#endif
 }
 
 static void log_error_if_nonzero(const char *message, int error_code)
@@ -74,14 +85,14 @@ static void mqtt_esp_mqtt_event_handler(void *handler_args, esp_event_base_t bas
 #if defined ESP_PUBLISHER
             if (_client == &mqtt_client_publish) {
                 ESP_LOGI("TAG_MQTT", "MQTT_PUBLISHER_CONNECTED");
-                xTaskCreate(dht11_vTask_read, "DHT11", 4096, NULL, 1, NULL);
+                xTaskCreate(dht11_vTask_read, "DHT11", 4096, NULL, 10, NULL);
                 xTaskCreate(di_vTask, "di_vTask", 2048, NULL, 10, NULL);
-                xTaskCreate(di_vTask_periodic, "di_vTask", 2048, NULL, 10, NULL);
                 xTaskCreate(light_sensor_vTask, "light_sensor_vTask", 2048, NULL, 10, NULL);
                 esp_mqtt_client_start(mqtt_client_subscibe);
             } else if (_client == &mqtt_client_subscibe) {
                 ESP_LOGI("TAG_MQTT", "MQTT_SUBSCRIBE_CONNECTED");
                 esp_mqtt_client_subscribe(mqtt_client_subscibe, "gb_iot/2950_UDA/onpayload", 0);
+                esp_mqtt_client_subscribe(mqtt_client_subscibe, "gb_iot/2950_UDA/wake_up", 0);
             }
 #elif defined ESP_MQTT_ADAPTER
             if (_client == &mqtt_client_publish) {
@@ -89,7 +100,8 @@ static void mqtt_esp_mqtt_event_handler(void *handler_args, esp_event_base_t bas
                 esp_mqtt_client_start(mqtt_client_subscibe);
             } else if (_client == &mqtt_client_subscibe) {
                 ESP_LOGI("TAG_MQTT", "MQTT_SUBSCRIBE_CONNECTED");
-                //mqtt_esp_mqtt_subscribe("2950_UDA");
+                mqtt_esp_mqtt_subscribe("2950_UDA");
+                mqtt_esp_publish_message("gb_iot/2950_UDA/wake_up", "1");
             }
 #endif
         }
@@ -137,12 +149,22 @@ static void mqtt_esp_mqtt_event_handler(void *handler_args, esp_event_base_t bas
 
             char my_topic[] = "gb_iot/2950_UDA/onpayload";
             if (strcmp(incom_topic, my_topic) == 0) {
-                if (event->data[0] == '1') {
-                    gpio_set_level(LED_WHITE, 1);
-                } else if (event->data[0] == '0'){
+                if (event->data[0] == '0') {
+                    *_payload_state = 0;
                     gpio_set_level(LED_WHITE, 0);
+
+                } else {
+                    *_payload_state = 1;
+                    gpio_set_level(LED_WHITE, 1);
                 }
             }
+
+            sprintf(my_topic, "gb_iot/2950_UDA/wake_up");
+            if (strcmp(incom_topic, my_topic) == 0) {
+                ESP_LOGW("!!!!!!!!!!!", "Wake up event! Publish all data!");
+                _wakeUpAction();
+            }
+
 #elif defined ESP_MQTT_ADAPTER
 
             char topic[100];
@@ -237,16 +259,16 @@ void mqtt_esp_mqtt_app_start(void ){
             .credentials.authentication.password = "qwope354F",
             .credentials.username = "user",
     };
-#elif defined YANDEX
+#elif defined YANDEX  //https://github.com/espressif/esp-mqtt/issues/125?ysclid=lqqc6jdja0255111744
     ESP_ERROR_CHECK(esp_tls_init_global_ca_store());
     ESP_ERROR_CHECK(esp_tls_set_global_ca_store(
             (const unsigned char *) _root_ca,
-            strlen(_root_ca) + 1));    //https://github.com/espressif/esp-mqtt/issues/125?ysclid=lqqc6jdja0255111744
+            strlen(_root_ca) + 1));
 
     esp_mqtt_client_config_t mqtt_cfg_publish = {
             .broker.address.uri = "mqtts://mqtt.cloud.yandex.net",
             .broker.address.port = 8883,
-            .credentials.client_id = "ESP_publish",
+            .credentials.client_id = "ESP_publish1",
             .credentials.authentication.certificate = _cert_devices,
             .credentials.authentication.certificate_len = strlen(_cert_devices) + 1,
             .credentials.authentication.key = _key_devices,
@@ -257,7 +279,7 @@ void mqtt_esp_mqtt_app_start(void ){
     esp_mqtt_client_config_t mqtt_cfg_subscribe = {
             .broker.address.uri = "mqtts://mqtt.cloud.yandex.net",
             .broker.address.port = 8883,
-            .credentials.client_id = "ESP_subscribe",
+            .credentials.client_id = "ESP_subscribe1",
             .credentials.authentication.certificate = _cert_registr,
             .credentials.authentication.certificate_len = strlen(_cert_registr) + 1,
             .credentials.authentication.key = _key_registr,

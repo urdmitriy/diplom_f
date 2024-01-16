@@ -20,3 +20,5 @@ diplom-stm32/cmake-build-debug/
 diplom-stm32f4/cmake-build-debug/
 
 Certs.zip
+
+diplom-common/secret.h

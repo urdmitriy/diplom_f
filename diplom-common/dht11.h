@@ -25,7 +25,7 @@ typedef struct {
 } data_sensor_t;
 
 void dht11_vTask_read(void * pvParameters );
-void dht11_init(int pin_sensor, mqtt_publish_app mqttPublishApp);
+void dht11_init(int pin_sensor, mqtt_publish_app mqttPublishApp, SemaphoreHandle_t * semaphore_wake_up);
 void dht11_read(data_sensor_t *data);
 
 

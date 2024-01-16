@@ -56,11 +56,17 @@ void leds_init(){
     gpio_set_direction(LED_YELLOW, GPIO_MODE_OUTPUT);
     gpio_set_direction(LED_WHITE, GPIO_MODE_OUTPUT);
 
-    timer_led_yellow = xTimerCreate("timer led", pdMS_TO_TICKS(100), pdFALSE, "timer yellow", TimerCallbackFunction);
-    timer_led_white = xTimerCreate("timer led", pdMS_TO_TICKS(100), pdFALSE, "timer white", TimerCallbackFunction);
-    timer_led_red = xTimerCreate("timer led", pdMS_TO_TICKS(100), pdFALSE, "timer red", TimerCallbackFunction);
-    timer_led_green = xTimerCreate("timer led", pdMS_TO_TICKS(100), pdFALSE, "timer green", TimerCallbackFunction);
-    timer_led_blue = xTimerCreate("timer led", pdMS_TO_TICKS(100), pdFALSE, "timer blue", TimerCallbackFunction);
+    gpio_set_drive_capability(LED_RED, GPIO_DRIVE_CAP_0);
+    gpio_set_drive_capability(LED_GREEN, GPIO_DRIVE_CAP_0);
+    gpio_set_drive_capability(LED_BLUE, GPIO_DRIVE_CAP_0);
+    gpio_set_drive_capability(LED_YELLOW, GPIO_DRIVE_CAP_0);
+    gpio_set_drive_capability(LED_WHITE, GPIO_DRIVE_CAP_0);
+
+    timer_led_yellow = xTimerCreate("timer yellow led", pdMS_TO_TICKS(100), pdFALSE, "timer yellow", TimerCallbackFunction);
+    timer_led_white = xTimerCreate("timer white led", pdMS_TO_TICKS(100), pdFALSE, "timer white", TimerCallbackFunction);
+    timer_led_red = xTimerCreate("timer red led", pdMS_TO_TICKS(100), pdFALSE, "timer red", TimerCallbackFunction);
+    timer_led_green = xTimerCreate("timer green led", pdMS_TO_TICKS(100), pdFALSE, "timer green", TimerCallbackFunction);
+    timer_led_blue = xTimerCreate("timer blue led", pdMS_TO_TICKS(100), pdFALSE, "timer blue", TimerCallbackFunction);
 
 #elif defined ESP_MQTT_ADAPTER
     gpio_reset_pin(LED_GREEN);

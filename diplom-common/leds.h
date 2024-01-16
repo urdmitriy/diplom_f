@@ -19,7 +19,7 @@ typedef enum {
 #elif defined ESP_MQTT_ADAPTER
 
 typedef enum {
- LED_GREEN = 4,
+ LED_GREEN = 15,
 } leds_e;
 
 #endif
