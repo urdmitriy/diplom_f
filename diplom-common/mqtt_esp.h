@@ -13,24 +13,17 @@
 #include "di.h"
 #include "uart_data.h"
 #include "crc8.h"
-
 #include "esp_tls.h"
-#if defined ESP_PUBLISHER
-#include "dht11.h"
-#include "photosensor.h"
-#elif defined ESP_MQTT_ADAPTER
 #include "uart_esp.h"
-#endif
+
 typedef void (*uart_data_handler)(char *rx_buffer);
 typedef void (*wake_up_action)(void);
+typedef void (*app_after_mqtt_connected)(esp_mqtt_client_handle_t *active_client,
+        esp_mqtt_client_handle_t *publish_client, esp_mqtt_client_handle_t *subscribe_client);
+typedef void (*app_after_mqtt_rcv_data)(esp_mqtt_event_handle_t event);
 
-#if defined ESP_PUBLISHER
 void mqtt_esp_init(char* root_ca, char* cert_devices, char* key_devices, char* cert_registr, char* key_registr,
-                   uart_data_handler uartDataHandler, wake_up_action wakeUpAction, int *payload_state);
-#elif defined ESP_MQTT_ADAPTER
-void mqtt_esp_init(char* root_ca, char* cert_devices, char* key_devices, char* cert_registr, char* key_registr, uart_data_handler uartDataHandler);
-#endif
-
+                   app_after_mqtt_connected, app_after_mqtt_rcv_data);
 
 void mqtt_esp_mqtt_app_start();
 parametr_name_e mqtt_esp_get_param_name(char *topic_name);

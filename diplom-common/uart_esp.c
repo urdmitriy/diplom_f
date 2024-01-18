@@ -20,7 +20,7 @@ void uart_init(mqtt_publish_app mqttPublishApp, mqtt_subscribe_app mqttSubscribe
     _mqttPublishApp = mqttPublishApp;
     _mqttSubscribeApp = mqttSubscribeApp;
     _mqttUnsubscribeApp = mqttUnsubscribeApp;
-    _queue_message_to_send = xQueueCreate(50, sizeof(uart_data_t));
+    _queue_message_to_send = xQueueCreate(20, sizeof(uart_data_t));
 
     const uart_config_t uart_config = {
             .baud_rate = 115200,
@@ -34,23 +34,30 @@ void uart_init(mqtt_publish_app mqttPublishApp, mqtt_subscribe_app mqttSubscribe
     uart_driver_install(UART_NUM_1, 256, 0, 0, NULL, 0);
     uart_param_config(UART_NUM_1, &uart_config);
     uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-    xTaskCreate(rx_task, "uart_rx_task", 4096, NULL, configMAX_PRIORITIES, NULL);
-    xTaskCreate(tx_task, "uart_tx_task", 4096, NULL, configMAX_PRIORITIES-1, NULL);
+    xTaskCreate(rx_task, "uart_rx_task", 4096, NULL, configMAX_PRIORITIES-10, NULL);
+    xTaskCreate(tx_task, "uart_tx_task", 4096, NULL, configMAX_PRIORITIES, NULL);
 }
 int sendData(const char* data)
 {
-    const int len = sizeof (uart_data_t); //strlen(data);
+
+    const int len = sizeof (uart_data_t);
     const int txBytes = uart_write_bytes(UART_NUM_1, data, len);
-    ESP_LOGI("SendData", "Wrote %d bytes", txBytes);
+    //ESP_LOGI("SendData", "Wrote %d bytes", txBytes);
     return txBytes;
 }
 static void tx_task(void *arg)
 {
+//    portMUX_TYPE my_spinlock = portMUX_INITIALIZER_UNLOCKED;
     uart_data_t data_to_send;
     for (; ; ) {
-        if (xQueueReceive(_queue_message_to_send, &data_to_send, pdMS_TO_TICKS(10))){
+        if (xQueueReceive(_queue_message_to_send, &data_to_send, portMAX_DELAY)){
+
             ESP_LOGI("UART", "Data ready to send! value=%s, data_type=%lu", data_to_send.value, data_to_send.data_type);
+//            taskENTER_CRITICAL(&my_spinlock);
             sendData((char*) &data_to_send);
+//            taskEXIT_CRITICAL(&my_spinlock);
+            vTaskDelay(pdMS_TO_TICKS(10));
+
         }
     }
 }
@@ -59,7 +66,7 @@ static void rx_task(void *arg)
 {
     static const char *RX_TASK_TAG = "RX_TASK";
     for (;;) {
-        const int rxBytes = uart_read_bytes(UART_NUM_1, _rx_buffer, sizeof (uart_data_t), 1000 / portTICK_PERIOD_MS);
+        const int rxBytes = uart_read_bytes(UART_NUM_1, _rx_buffer, sizeof (uart_data_t), pdMS_TO_TICKS(100));
         if (rxBytes > 0) {
             _rx_buffer[rxBytes] = 0;
             ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, _rx_buffer);
